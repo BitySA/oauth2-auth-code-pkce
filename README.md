@@ -9,7 +9,7 @@
 ### JavaScript example
 
 ```html
-<script src="node_modules/@bity/oauth2authcodepkce/index.js"></script>
+<script type="module" src="node_modules/@bity/oauth2authcodepkce/index.mjs"></script>
 <script>
 OAuth2AuthCodePKCE
   .isComingBackFromAuthServer()

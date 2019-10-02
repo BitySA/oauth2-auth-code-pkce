@@ -280,6 +280,7 @@ export class OAuth2AuthCodePKCE {
    * If there is an error, it will be passed back as a rejected Promies.
    * If there is no code, the user should be redirected via
    * [fetchAuthorizationGrant].
+   */
   static isComingBackFromAuthServer(): Promise<OAuth2AuthCodePKCE> {
     const error = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'error');
     if (error) {

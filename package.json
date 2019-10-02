@@ -1,11 +1,10 @@
 {
   "name": "oauth2-auth-code-pkce",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "An OAuth 2.0 client that ONLY supports Authorization Code flow with PKCE support.",
   "main": "index.js",
   "scripts": {
-    "build": "npx tsc -p ./tsconfig.json && printf '2i\nvar exports = {};\n.\nw\nq\n' | ex index.js",
-    "serve": "npm run build && http-server -p 8080"
+    "build": "npx tsc -p ./tsconfig.json"
   },
   "keywords": [
     "oauth",
