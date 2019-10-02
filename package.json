@@ -4,7 +4,8 @@
   "description": "An OAuth 2.0 client that ONLY supports Authorization Code flow with PKCE support.",
   "main": "index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "npx tsc -p ./tsconfig.json && printf '2i\nvar exports = {};\n.\nw\nq\n' | ex index.js",
+    "serve": "npm run build && http-server -p 8080"
   },
   "keywords": [
     "oauth",
@@ -12,5 +13,8 @@
     "pkce"
   ],
   "author": "Lee Fallat",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^3.6.3"
+  }
 }
