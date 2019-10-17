@@ -2,14 +2,14 @@
 
 ## Installation
 
-`npm install @bity/oauth2authcodepkce`
+`npm install @bity/oauth2-auth-code-pkce`
 
 ## Usage
 
 ### JavaScript example
 
 ```html
-<script type="module" src="node_modules/@bity/oauth2authcodepkce/index.mjs"></script>
+<script type="module" src="node_modules/@bity/oauth2-auth-code-pkce/index.mjs"></script>
 <script>
 OAuth2AuthCodePKCE
   .isComingBackFromAuthServer()
