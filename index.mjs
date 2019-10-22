@@ -99,7 +99,7 @@ var OAuth2AuthCodePKCE = /** @class */ (function () {
      * This method should never return undefined, but was put here to satisfy the
      * TypeScript typechecker.
      */
-    OAuth2AuthCodePKCE.prototype.fetchAccessToken = function (codeOverride) {
+    OAuth2AuthCodePKCE.prototype.fetchAccessToken = function (onGrantExpiry, codeOverride) {
         var _this = this;
         this.assertStateAndConfigArePresent();
         var _a = this.state, _b = _a.authorizationGrantCode, authorizationGrantCode = _b === void 0 ? codeOverride : _b, _c = _a.codeVerifier, codeVerifier = _c === void 0 ? '' : _c;
@@ -138,13 +138,16 @@ var OAuth2AuthCodePKCE = /** @class */ (function () {
         })
             .catch(function (jsonPromise) { return Promise.reject(jsonPromise); })
             .catch(function (data) {
-            switch (data.error) {
+            var error = data.error || 'There was a network error.';
+            switch (error) {
                 case 'invalid_grant':
-                    return _this.fetchAuthorizationGrant();
+                    onGrantExpiry(function () { return _this
+                        .fetchAuthorizationGrant()
+                        .catch(function (error) { return console.error(error); }); });
                 default:
                     break;
             }
-            return Promise.reject(data.error);
+            return Promise.reject(error);
         });
     };
     /**
@@ -178,8 +181,7 @@ var OAuth2AuthCodePKCE = /** @class */ (function () {
                             + ("code_challenge=" + encodeURIComponent(codeChallenge) + "&")
                             + "code_challenge_method=S256";
                         location.replace(url);
-                        // Placed here to satifsy TypeScript compiler.
-                        return [2 /*return*/, undefined];
+                        return [2 /*return*/];
                 }
             });
         });
@@ -190,10 +192,10 @@ var OAuth2AuthCodePKCE = /** @class */ (function () {
      *
      * Typically you always want to use this over [fetchAccessToken].
      */
-    OAuth2AuthCodePKCE.prototype.getAccessToken = function () {
+    OAuth2AuthCodePKCE.prototype.getAccessToken = function (onGrantExpiry) {
         var token = this.state.token;
         if (!token || (new Date()) >= (new Date(token.expiry))) {
-            return this.fetchAccessToken();
+            return this.fetchAccessToken(onGrantExpiry);
         }
         return Promise.resolve(token);
     };

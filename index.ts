@@ -5,7 +5,7 @@
 export interface Configuration {
   authorizationUrl: URL;
   clientId: string;
-  endpoints: URL[];
+  onGrantExpiry: (fetchAuthorization: () => Promise<void>) => void;
   redirectUrl: URL;
   scopes: string[];
   tokenUrl: URL;
@@ -86,7 +86,10 @@ export class OAuth2AuthCodePKCE {
    * This method should never return undefined, but was put here to satisfy the
    * TypeScript typechecker.
    */
-  public fetchAccessToken(codeOverride?: string): Promise<Token | undefined> {
+  public fetchAccessToken(
+    onGrantExpiry: (c: () => Promise<void>) => void,
+    codeOverride?: string
+  ): Promise<Token> {
     this.assertStateAndConfigArePresent();
   
     const { authorizationGrantCode = codeOverride, codeVerifier = '' } = this.state;
@@ -124,13 +127,17 @@ export class OAuth2AuthCodePKCE {
     })
     .catch(jsonPromise => Promise.reject(jsonPromise))
     .catch(data => {
-      switch (data.error) {
+      const error = data.error || 'There was a network error.';
+      switch (error) {
         case 'invalid_grant':
-          return this.fetchAuthorizationGrant();
+          onGrantExpiry(() => this
+            .fetchAuthorizationGrant()
+            .catch(error => console.error(error))
+          );
         default:
           break;
       }
-      return Promise.reject(data.error);
+      return Promise.reject(error);
     });
   }
 
@@ -138,7 +145,7 @@ export class OAuth2AuthCodePKCE {
    * Fetch an authorization grant via redirection. In a sense this function
    * doesn't return because of the redirect behavior (uses `location.replace`).
    */
-  public async fetchAuthorizationGrant(): Promise<undefined> {
+  public async fetchAuthorizationGrant(): Promise<void> {
     this.assertStateAndConfigArePresent();
 
     const { clientId, redirectUrl, scopes } = this.config;
@@ -166,9 +173,6 @@ export class OAuth2AuthCodePKCE {
       + `code_challenge_method=S256`;
 
     location.replace(url);
-
-    // Placed here to satifsy TypeScript compiler.
-    return undefined;
   }
 
   /**
@@ -177,10 +181,12 @@ export class OAuth2AuthCodePKCE {
    *
    * Typically you always want to use this over [fetchAccessToken].
    */
-  public getAccessToken(): Promise<Token | undefined> {
+  public getAccessToken(
+    onGrantExpiry: (c: () => Promise<void>) => void
+  ): Promise<Token | undefined> {
     const { token } = this.state;
     if (!token ||  (new Date()) >= (new Date(token.expiry))) {
-      return this.fetchAccessToken();
+      return this.fetchAccessToken(onGrantExpiry);
     }
     return Promise.resolve(token);
   }
