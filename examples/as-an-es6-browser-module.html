@@ -1,0 +1,26 @@
+<script type="module">
+import { OAuth2AuthCodePKCE } from "../index.mjs";
+OAuth2AuthCodePKCE
+  .isComingBackFromAuthServer()
+  .then((oauth) => oauth.getAccessToken((fetchNewGrant) => {
+    alert('Grant expired!');
+    return fetchNewGrant();
+  }))
+  .then((token) => console.log(token))
+  .catch((potentialError) => {
+    if (potentialError) {
+      alert(potentialError);
+      return;
+    }
+
+    (new OAuth2AuthCodePKCE())
+      .setConfig({
+        authorizationUrl: 'https://localhost:8000/oauth2/auth',
+        tokenUrl: 'https://localhost:8000/oauth2/token',
+        clientId: '16082c62-bb0f-46ae-ae1d-48f82ced8b5c',
+        scopes: ['offline'],
+        redirectUrl: 'http://localhost:8080/examples/as-an-es6-browser-module.html'
+      })
+      .fetchAuthorizationGrant();
+  });
+</script>
