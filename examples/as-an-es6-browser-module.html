@@ -15,10 +15,10 @@ OAuth2AuthCodePKCE
 
     (new OAuth2AuthCodePKCE())
       .setConfig({
-        authorizationUrl: 'https://localhost:8000/oauth2/auth',
-        tokenUrl: 'https://localhost:8000/oauth2/token',
-        clientId: '16082c62-bb0f-46ae-ae1d-48f82ced8b5c',
-        scopes: ['offline'],
+        authorizationUrl: 'https://connect.bity.io/oauth2/auth',
+        tokenUrl: 'https://connect.bity.io/oauth2/token',
+        clientId: '5c651cb1-1a4a-4e8b-84fc-f296f878a947',
+        scopes: ['https://auth.bity.io/scopes/exchange.place'],
         redirectUrl: 'http://localhost:8080/examples/as-an-es6-browser-module.html'
       })
       .fetchAuthorizationGrant();
