@@ -1,5 +1,8 @@
-<script type="module">
-import { OAuth2AuthCodePKCE } from "../index.mjs";
+<script>let module = {};</script>
+<script src="../oauth2-auth-code-pkce.js"></script>
+<script>
+const { OAuth2AuthCodePKCE } = module.exports;
+
 OAuth2AuthCodePKCE
   .isComingBackFromAuthServer()
   .then((oauth) => oauth.getAccessToken((fetchNewGrant) => {

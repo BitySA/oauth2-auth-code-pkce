@@ -246,7 +246,6 @@ export class OAuth2AuthCodePKCE {
    * Generates a code_verifier and code_challenge, as specified in rfc7636.
    */
   static generatePKCECodes(): PromiseLike<PKCECodes> {
-    const encoder = new TextEncoder();
     const output = new Uint32Array(RECOMMENDED_CODE_VERIFIER_LENGTH);
     crypto.getRandomValues(output);
     const codeVerifier = OAuth2AuthCodePKCE.base64urlEncode(Array

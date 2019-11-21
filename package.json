@@ -5,7 +5,9 @@
   "main": "index.mjs",
   "types": "index.ts",
   "scripts": {
-    "build": "npx tsc -p ./tsconfig.json",
+    "build:code:browser": "webpack",
+    "build:code": "npm run build:code:browser",
+    "build": "npm run build:code",
     "serve:examples": "http-server ./ --cors"
   },
   "keywords": [
@@ -17,6 +19,9 @@
   "license": "AGPL-3.0-only",
   "devDependencies": {
     "http-server": "^0.11.1",
-    "typescript": "^3.6.3"
+    "ts-loader": "^6.2.1",
+    "typescript": "^3.7.2",
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.10"
   }
 }
