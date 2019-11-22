@@ -5,7 +5,8 @@
 export interface Configuration {
   authorizationUrl: URL;
   clientId: string;
-  onGrantExpiry: (fetchAuthorization: () => Promise<void>) => void;
+  onAccessTokenExpiry: (refreshAccessToken: () => Promise<AccessToken>) => Promise<AccessToken | undefined>;
+  onInvalidGrant: (refreshGrantOrRefreshToken: () => Promise<void>) => void;
   redirectUrl: URL;
   scopes: string[];
   tokenUrl: URL;
@@ -20,11 +21,16 @@ export interface State {
   authorizationGrantCode?: string;
   codeChallenge?: string;
   codeVerifier?: string;
-  token?: Token;
+  accessToken?: AccessToken;
+  refreshToken?: RefreshToken;
   stateQueryParam?: string;
 }
 
-export interface Token {
+export interface RefreshToken {
+  value: string;
+};
+
+export interface AccessToken {
   value: string;
   expiry: string;
 };
@@ -35,7 +41,6 @@ export type URL = string;
  * To store the OAuth client's data between websites due to redirection.
  */
 export const LOCALSTORAGE_ID = `oauth2authcodepkce`;
-export const LOCALSTORAGE_CONFIG = `${LOCALSTORAGE_ID}-config`;
 export const LOCALSTORAGE_STATE = `${LOCALSTORAGE_ID}-state`;
 
 /**
@@ -68,15 +73,55 @@ export class OAuth2AuthCodePKCE {
   private config?: Configuration;
   private state: State = {};
 
+  constructor(config: Configuration) {
+    this.config = config;
+    this.recoverState();
+    if (this.captureGrantCodeAndNotifyIfReturning()) {
+      this.getAccessToken();
+    }
+    return this;
+  }
+
   /**
    * If the state or config are missing, it means the client is in a bad state.
    * This should never happen, but the check is there just in case.
    */
-  public assertStateAndConfigArePresent() {
+  private assertStateAndConfigArePresent() {
     if (!this.state || !this.config) {
       console.error('state:', this.state, 'config:', this.config);
       throw new Error('state or config is not set.');
     }
+  }
+
+  /**
+   * If there is an error, it will be passed back as a rejected Promies.
+   * If there is no code, the user should be redirected via
+   * [fetchAuthorizationGrant].
+   */
+  private captureGrantCodeAndNotifyIfReturning(): boolean {
+    const error = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'error');
+    if (error) {
+      return false;
+    }
+
+    const code = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'code');
+    if (!code) {
+      return false;
+    }
+
+    const state = JSON.parse(localStorage.getItem(LOCALSTORAGE_STATE) || '{}');
+
+    const stateQueryParam = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'state');
+    if (stateQueryParam !== state.stateQueryParam) {
+      console.warn("state query string parameter doesn't match the one sent! Possible malicious activity somewhere.");
+      return false;
+    }
+
+    state.authorizationGrantCode = code;
+    localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(state));
+
+    this.setState(state);
+    return true;
   }
  
   /**
@@ -86,14 +131,17 @@ export class OAuth2AuthCodePKCE {
    * This method should never return undefined, but was put here to satisfy the
    * TypeScript typechecker.
    */
-  public fetchAccessToken(
-    onGrantExpiry: (c: () => Promise<void>) => void,
+  private fetchAccessTokenWithGrant(
     codeOverride?: string
-  ): Promise<Token> {
+  ): Promise<AccessToken> {
     this.assertStateAndConfigArePresent();
   
-    const { authorizationGrantCode = codeOverride, codeVerifier = '' } = this.state;
-    const { redirectUrl, clientId } = this.config;
+    const {
+      authorizationGrantCode = codeOverride,
+      codeVerifier = '',
+      refreshToken,
+    } = this.state;
+    const { clientId, onInvalidGrant, redirectUrl } = this.config;
 
     if (!codeVerifier) {
       console.warn('No code verifier is being sent.');
@@ -116,21 +164,30 @@ export class OAuth2AuthCodePKCE {
       }
     })
     .then(res => res.status === 400 ? Promise.reject(res.json()) : res.json())
-    .then(({ access_token, expires_in }) => ({
-      value: access_token,
-      expiry: (new Date(Date.now() + parseInt(expires_in))).toString()
-    }))
-    .then((token: Token) => {
-      this.state.token = token;
+    .then(({ access_token, expires_in, refresh_token }) => {
+      const accessToken: AccessToken = {
+        value: access_token,
+        expiry: (new Date(Date.now() + (parseInt(expires_in) * 1000))).toString()
+      };
+      this.state.accessToken = accessToken;
+
+      if (refresh_token) {
+        const refreshToken: RefreshToken = {
+          value: refresh_token
+        };
+        this.state.refreshToken = refreshToken;
+      }
+
       localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
-      return token;
+      return accessToken;
     })
-    .catch(jsonPromise => Promise.reject(jsonPromise))
-    .catch(data => {
+    .catch((jsonPromise) => jsonPromise.then((json: any) => Promise.reject(json)))
+    .catch((data) => {
+      console.log(data);
       const error = data.error || 'There was a network error.';
       switch (error) {
         case 'invalid_grant':
-          onGrantExpiry(() => this
+          onInvalidGrant(() => this
             .fetchAuthorizationGrant()
             .catch(error => console.error(error))
           );
@@ -176,36 +233,111 @@ export class OAuth2AuthCodePKCE {
   }
 
   /**
-   * Tries to get the current access token. If there is none, or it has expired,
-   * it will fetch another one.
+   * Tries to get the current access token. If there is none
+   * it will fetch another one. If it is expired, it will fire
+   * [onAccessTokenExpiry] but it's up to the user to call the refresh token
+   * function. This is because sometimes not using the refresh token facilities
+   * is easier.
    *
-   * Typically you always want to use this over [fetchAccessToken].
+   * Typically you always want to use this over [fetchAccessTokenWithGrant].
    */
-  public getAccessToken(
-    onGrantExpiry: (c: () => Promise<void>) => void
-  ): Promise<Token | undefined> {
-    const { token } = this.state;
-    if (!token ||  (new Date()) >= (new Date(token.expiry))) {
-      return this.fetchAccessToken(onGrantExpiry);
+  public getAccessToken(): Promise<AccessToken | undefined> {
+    this.assertStateAndConfigArePresent();
+
+    const { onAccessTokenExpiry, onInvalidGrant } = this.config;
+    const { accessToken, authorizationGrantCode, refreshToken } = this.state;
+    if (!authorizationGrantCode) {
+      return Promise.reject({ error: 'no_auth_code' });
     }
-    return Promise.resolve(token);
+
+    if (!accessToken) {
+      console.log('Getting access token with grant');
+      return this.fetchAccessTokenWithGrant();
+    }
+
+    // If there's no refresh token, attempt with the auth grant code.
+    if (!refreshToken && (new Date()) >= (new Date(accessToken.expiry))) {
+      console.log('Renewing access token with grant');
+      return onAccessTokenExpiry(() => this.fetchAccessTokenWithGrant());
+    }
+
+    if ((new Date()) >= (new Date(accessToken.expiry))) {
+      console.log('Renewing access token with refresh token');
+      return onAccessTokenExpiry(() => this.refreshAccessToken());
+    }
+
+    console.log('Access token is accessible and valid');
+    return Promise.resolve(accessToken);
   }
 
-  public recoverState(): this {
+  /**
+   * Refresh an access token from the remote service.
+   */
+  public refreshAccessToken(
+    codeOverride?: string
+  ): Promise<AccessToken> {
+    this.assertStateAndConfigArePresent();
+  
+    const { onInvalidGrant, tokenUrl } = this.config;
+    const { refreshToken } = this.state;
+
+    if (!refreshToken) {
+      console.warn('No refresh token is present.');
+    }
+
+    const url = tokenUrl;
+    const body = `grant_type=refresh_token&`
+      + `refresh_token=${refreshToken}`;
+
+    return fetch(url, {
+      method: 'POST',
+      body,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    })
+    .then(res => res.status === 400 ? Promise.reject(res.json()) : res.json())
+    .then(({ access_token, expires_in, refresh_token }) => {
+      const accessToken: AccessToken = {
+        value: access_token,
+        expiry: (new Date(Date.now() + parseInt(expires_in))).toString()
+      };
+      this.state.accessToken = accessToken;
+     
+      if (refresh_token) {
+        const refreshToken: RefreshToken = {
+          value: refresh_token
+        };
+        this.state.refreshToken = refreshToken;
+      }
+
+      localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
+      return accessToken;
+    })
+    .catch(jsonPromise => Promise.reject(jsonPromise))
+    .catch(data => {
+      const error = data.error || 'There was a network error.';
+      switch (error) {
+        case 'invalid_grant':
+          onInvalidGrant(() => this
+            .fetchAuthorizationGrant()
+            .catch(error => console.error(error))
+          );
+        default:
+          break;
+      }
+      return Promise.reject(error);
+    });
+  }
+
+  private recoverState(): this {
     this.state = JSON.parse(localStorage.getItem(LOCALSTORAGE_STATE) || '{}');
     return this;
   }
 
-
-  public setState(state: State): this {
+  private setState(state: State): this {
     this.state = state;
     localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(state));
-    return this;
-  }
-
-  public setConfig(config: Configuration): this {
-    this.config = config;
-    localStorage.setItem(LOCALSTORAGE_CONFIG, JSON.stringify(config));
     return this;
   }
 
@@ -279,37 +411,5 @@ export class OAuth2AuthCodePKCE {
       .from(output)
       .map((num: number) => PKCE_CHARSET[num % PKCE_CHARSET.length])
       .join('');
-  }
-
-  /**
-   * If there is an error, it will be passed back as a rejected Promies.
-   * If there is no code, the user should be redirected via
-   * [fetchAuthorizationGrant].
-   */
-  static isComingBackFromAuthServer(): Promise<OAuth2AuthCodePKCE> {
-    const error = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'error');
-    if (error) {
-      return Promise.reject(error);
-    }
-
-    const code = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'code');
-    if (!code) {
-      return Promise.reject();
-    }
-
-    const config = JSON.parse(localStorage.getItem(LOCALSTORAGE_CONFIG) || '{}');
-    const state = JSON.parse(localStorage.getItem(LOCALSTORAGE_STATE) || '{}');
-
-    const stateQueryParam = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'state');
-    if (stateQueryParam !== state.stateQueryParam) {
-      return Promise.reject('Returned state query param does not match original.');
-    }
-
-    state.authorizationGrantCode = code;
-    localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(state));
-
-    return Promise.resolve((new OAuth2AuthCodePKCE())
-      .setConfig(config)
-      .setState(state));
   }
 }

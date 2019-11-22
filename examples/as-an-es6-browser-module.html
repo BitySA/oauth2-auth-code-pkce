@@ -1,29 +1,39 @@
+<button onclick="authorize()">Authorize</button>
+<button onclick="tryToGetAccessToken()">Get Access Token</button>
+
 <script>let module = {};</script>
 <script src="../oauth2-auth-code-pkce.js"></script>
 <script>
 const { OAuth2AuthCodePKCE } = module.exports;
+const oauth = new OAuth2AuthCodePKCE({
+  authorizationUrl: 'https://connect.bity.io/oauth2/auth',
+  tokenUrl: 'https://connect.bity.io/oauth2/token',
+  clientId: '5c651cb1-1a4a-4e8b-84fc-f296f878a947',
+  scopes: ['https://auth.bity.io/scopes/exchange.place'],
+  redirectUrl: 'http://localhost:8080/examples/as-an-es6-browser-module.html',
+  onAccessTokenExpiry(refreshAccessToken) {
+    console.log("Expired! Access token needs to be renewed.");
+    alert("We will try to get a new access token via grant code or refresh token.");
+    return refreshAccessToken();
+  },
+  onInvalidGrant(refreshGrantOrRefreshToken) {
+    console.log("Expired! Grant or refresh token needs to be renewed.");
+    alert("Redirecting to auth server to obtain a new auth grant code.");
+    return refreshGrantOrRefreshToken();
+  }
+});
 
-OAuth2AuthCodePKCE
-  .isComingBackFromAuthServer()
-  .then((oauth) => oauth.getAccessToken((fetchNewGrant) => {
-    alert('Grant expired!');
-    return fetchNewGrant();
-  }))
-  .then((token) => console.log(token))
-  .catch((potentialError) => {
-    if (potentialError) {
-      alert(potentialError);
-      return;
-    }
+function authorize() { oauth.fetchAuthorizationGrant(); }
 
-    (new OAuth2AuthCodePKCE())
-      .setConfig({
-        authorizationUrl: 'https://connect.bity.io/oauth2/auth',
-        tokenUrl: 'https://connect.bity.io/oauth2/token',
-        clientId: '5c651cb1-1a4a-4e8b-84fc-f296f878a947',
-        scopes: ['https://auth.bity.io/scopes/exchange.place'],
-        redirectUrl: 'http://localhost:8080/examples/as-an-es6-browser-module.html'
-      })
-      .fetchAuthorizationGrant();
-  });
+function tryToGetAccessToken() {
+  oauth
+    .getAccessToken()
+    .then((token) => console.log(token))
+    .catch((potentialError) => {
+      if (potentialError) {
+        alert(potentialError);
+        return;
+      }
+    });
+}
 </script>
