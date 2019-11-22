@@ -133,7 +133,7 @@ var OAuth2AuthCodePKCE = /** @class */ (function () {
     OAuth2AuthCodePKCE.prototype.fetchAccessTokenWithGrant = function (codeOverride) {
         var _this = this;
         this.assertStateAndConfigArePresent();
-        var _a = this.state, _b = _a.authorizationGrantCode, authorizationGrantCode = _b === void 0 ? codeOverride : _b, _c = _a.codeVerifier, codeVerifier = _c === void 0 ? '' : _c, refreshToken = _a.refreshToken;
+        var _a = this.state, _b = _a.authorizationGrantCode, authorizationGrantCode = _b === void 0 ? codeOverride : _b, _c = _a.codeVerifier, codeVerifier = _c === void 0 ? '' : _c;
         var _d = this.config, clientId = _d.clientId, onInvalidGrant = _d.onInvalidGrant, redirectUrl = _d.redirectUrl;
         if (!codeVerifier) {
             console.warn('No code verifier is being sent.');
@@ -163,10 +163,10 @@ var OAuth2AuthCodePKCE = /** @class */ (function () {
             };
             _this.state.accessToken = accessToken;
             if (refresh_token) {
-                var refreshToken_1 = {
+                var refreshToken = {
                     value: refresh_token
                 };
-                _this.state.refreshToken = refreshToken_1;
+                _this.state.refreshToken = refreshToken;
             }
             localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(_this.state));
             return accessToken;
@@ -234,8 +234,8 @@ var OAuth2AuthCodePKCE = /** @class */ (function () {
     OAuth2AuthCodePKCE.prototype.getAccessToken = function () {
         var _this = this;
         this.assertStateAndConfigArePresent();
-        var _a = this.config, onAccessTokenExpiry = _a.onAccessTokenExpiry, onInvalidGrant = _a.onInvalidGrant;
-        var _b = this.state, accessToken = _b.accessToken, authorizationGrantCode = _b.authorizationGrantCode, refreshToken = _b.refreshToken;
+        var onAccessTokenExpiry = this.config.onAccessTokenExpiry;
+        var _a = this.state, accessToken = _a.accessToken, authorizationGrantCode = _a.authorizationGrantCode, refreshToken = _a.refreshToken;
         if (!authorizationGrantCode) {
             return Promise.reject({ error: 'no_auth_code' });
         }
@@ -258,7 +258,7 @@ var OAuth2AuthCodePKCE = /** @class */ (function () {
     /**
      * Refresh an access token from the remote service.
      */
-    OAuth2AuthCodePKCE.prototype.refreshAccessToken = function (codeOverride) {
+    OAuth2AuthCodePKCE.prototype.refreshAccessToken = function () {
         var _this = this;
         this.assertStateAndConfigArePresent();
         var _a = this.config, onInvalidGrant = _a.onInvalidGrant, tokenUrl = _a.tokenUrl;
@@ -285,10 +285,10 @@ var OAuth2AuthCodePKCE = /** @class */ (function () {
             };
             _this.state.accessToken = accessToken;
             if (refresh_token) {
-                var refreshToken_2 = {
+                var refreshToken_1 = {
                     value: refresh_token
                 };
-                _this.state.refreshToken = refreshToken_2;
+                _this.state.refreshToken = refreshToken_1;
             }
             localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(_this.state));
             return accessToken;

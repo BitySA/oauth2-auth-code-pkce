@@ -138,8 +138,7 @@ export class OAuth2AuthCodePKCE {
   
     const {
       authorizationGrantCode = codeOverride,
-      codeVerifier = '',
-      refreshToken,
+      codeVerifier = ''
     } = this.state;
     const { clientId, onInvalidGrant, redirectUrl } = this.config;
 
@@ -244,7 +243,7 @@ export class OAuth2AuthCodePKCE {
   public getAccessToken(): Promise<AccessToken | undefined> {
     this.assertStateAndConfigArePresent();
 
-    const { onAccessTokenExpiry, onInvalidGrant } = this.config;
+    const { onAccessTokenExpiry } = this.config;
     const { accessToken, authorizationGrantCode, refreshToken } = this.state;
     if (!authorizationGrantCode) {
       return Promise.reject({ error: 'no_auth_code' });
@@ -273,9 +272,7 @@ export class OAuth2AuthCodePKCE {
   /**
    * Refresh an access token from the remote service.
    */
-  public refreshAccessToken(
-    codeOverride?: string
-  ): Promise<AccessToken> {
+  public refreshAccessToken(): Promise<AccessToken> {
     this.assertStateAndConfigArePresent();
   
     const { onInvalidGrant, tokenUrl } = this.config;
