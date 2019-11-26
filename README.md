@@ -30,3 +30,10 @@ Modify the example to use the correct configuration.
 | ESModules (import/export)       | index.js                  |
 | CommonJS2 (require e.g. nodejs) | oauth2-auth-code-pkce.js  |
 | TypeScript                      | index.ts                  |
+
+## Development
+
+### Publishing to NPM
+
+Grab the NPM-generated `bity-oauth2-auth-code-pkce-*.tgz` tarball from CI and
+then use `npm publish $tarball` to publish it to NPM.

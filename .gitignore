@@ -1,1 +1,4 @@
+*.tgz
+index.js
 node_modules
+oauth2-auth-code-pkce.js

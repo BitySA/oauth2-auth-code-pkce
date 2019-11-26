@@ -1,0 +1,18 @@
+image: node:lts-buster
+
+stages:
+  - Stage 0
+
+build:
+  stage: Stage 0
+  script:
+    - npm install
+    - npm run build
+    - npm pack
+    - tar -tf *.tgz | sort
+    - test -z "$(git status --porcelain)" || (git status; false)
+  artifacts:
+    name: tarball
+    when: on_success
+    paths:
+      - "bity-oauth2-auth-code-pkce-*.tgz"
