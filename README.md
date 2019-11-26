@@ -1,7 +1,10 @@
 # OAuth2AuthCodePKCE client
 
-A zero dependency OAuth2 client, that **only** support authorization grant
-codes, with PKCE support for client side protection.
+A zero dependency OAuth 2.0 client supporting *only* the authorization code
+grant ([RFC 6749 § 4.1][]) with PKCE ([RFC 7636][]) for client side protection.
+
+[RFC 6749 § 4.1]: https://tools.ietf.org/html/rfc6749#section-4.1
+[RFC 7636]: https://tools.ietf.org/html/rfc7636
 
 Currently the only Type/JavaScript implementation in public existence.
 
