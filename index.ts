@@ -339,8 +339,8 @@ export class OAuth2AuthCodePKCE {
   }
 
   /**
-   * Implements *base64url-encode*, which is NOT the same as regular base64
-   * encoding.
+   * Implements *base64url-encode* (RFC 4648 § 5) without padding, which is NOT
+   * the same as regular base64 encoding.
    */
   static base64urlEncode(value: string): string {
     let base64 = btoa(value);
