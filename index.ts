@@ -94,7 +94,7 @@ export class OAuth2AuthCodePKCE {
   }
 
   /**
-   * If there is an error, it will be passed back as a rejected Promies.
+   * If there is an error, it will be passed back as a rejected Promise.
    * If there is no code, the user should be redirected via
    * [fetchAuthorizationGrant].
    */
@@ -123,7 +123,7 @@ export class OAuth2AuthCodePKCE {
     this.setState(state);
     return true;
   }
- 
+
   /**
    * Fetch an access token from the remote service. You may pass a custom
    * authorization grant code for any reason, but this is non-standard usage.
@@ -135,7 +135,7 @@ export class OAuth2AuthCodePKCE {
     codeOverride?: string
   ): Promise<AccessToken> {
     this.assertStateAndConfigArePresent();
-  
+
     const {
       authorizationGrantCode = codeOverride,
       codeVerifier = ''
@@ -274,7 +274,7 @@ export class OAuth2AuthCodePKCE {
    */
   public refreshAccessToken(): Promise<AccessToken> {
     this.assertStateAndConfigArePresent();
-  
+
     const { onInvalidGrant, tokenUrl } = this.config;
     const { refreshToken } = this.state;
 
@@ -300,7 +300,7 @@ export class OAuth2AuthCodePKCE {
         expiry: (new Date(Date.now() + parseInt(expires_in))).toString()
       };
       this.state.accessToken = accessToken;
-     
+
       if (refresh_token) {
         const refreshToken: RefreshToken = {
           value: refresh_token
