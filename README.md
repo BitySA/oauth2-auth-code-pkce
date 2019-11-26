@@ -25,8 +25,8 @@ Modify the example to use the correct configuration.
 
 ## Module systems supported
 
-Module system|File
----|---
-ESModules (import/export)|index.js
-CommonJS2 (require e.g. nodejs)|oauth2-auth-code-pkce.js
-TypeScript|index.ts
+| Module system                   | File                      |
+|:--------------------------------|:--------------------------|
+| ESModules (import/export)       | index.js                  |
+| CommonJS2 (require e.g. nodejs) | oauth2-auth-code-pkce.js  |
+| TypeScript                      | index.ts                  |
