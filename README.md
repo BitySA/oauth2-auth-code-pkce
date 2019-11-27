@@ -16,8 +16,8 @@ Currently the only Type/JavaScript implementation in public existence.
 
 ## Usage
 
-Run `npm run serve:examples` and navigate to 
-http://localhost:8080/examples/as-an-es6-browser-module.html
+Run `npm run serve:tests` and navigate to 
+http://localhost:8080/tests/panel.html
 
 This page acts as a test panel for various scenarios. Play around! :)
 

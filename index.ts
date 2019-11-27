@@ -5,8 +5,8 @@
 export interface Configuration {
   authorizationUrl: URL;
   clientId: string;
-  onAccessTokenExpiry: (refreshAccessToken: () => Promise<AccessToken>) => Promise<AccessToken | undefined>;
-  onInvalidGrant: (refreshGrantOrRefreshToken: () => Promise<void>) => void;
+  onAccessTokenExpiry: (refreshAccessToken: () => Promise<AccessContext>) => Promise<AccessContext>;
+  onInvalidGrant: (refreshAuthCodeOrRefreshToken: () => Promise<void>) => void;
   redirectUrl: URL;
   scopes: string[];
   tokenUrl: URL;
@@ -18,12 +18,14 @@ export interface PKCECodes {
 }
 
 export interface State {
-  authorizationGrantCode?: string;
+  accessToken?: AccessToken;
+  authorizationCode?: string;
   codeChallenge?: string;
   codeVerifier?: string;
-  accessToken?: AccessToken;
+  hasAuthCodeBeenExchangedForAccessToken?: boolean;
   refreshToken?: RefreshToken;
   stateQueryParam?: string;
+  scopes?: string[];
 }
 
 export interface RefreshToken {
@@ -35,7 +37,69 @@ export interface AccessToken {
   expiry: string;
 };
 
+export type Scopes = string[];
+
+export interface AccessContext {
+  token: AccessToken;
+  scopes: Scopes;
+};
+
 export type URL = string;
+
+/**
+ * A list of OAuth2AuthCodePKCE errors.
+ */
+// To "namespace" all errors.
+export class ErrorOAuth2 { }
+
+// For really unknown errors.
+export class ErrorUnknown extends ErrorOAuth2 { }
+
+// Some generic, internal errors that can happen.
+export class ErrorNoAuthCode extends ErrorOAuth2 { }
+export class ErrorInvalidReturnedStateParam extends ErrorOAuth2 { }
+export class ErrorInvalidJson extends ErrorOAuth2 { }
+
+// Errors that occur across many endpoints
+export class ErrorInvalidScope extends ErrorOAuth2 { }
+export class ErrorInvalidRequest extends ErrorOAuth2 { }
+
+/**
+ * Possible authorization grant errors given by the redirection from the
+ * authorization server.
+ */
+export class ErrorAuthenticationGrant extends ErrorOAuth2 { }
+export class ErrorUnauthorizedClient extends ErrorAuthenticationGrant { }
+export class ErrorAccessDenied extends ErrorAuthenticationGrant { }
+export class ErrorUnsupportedResponseType extends ErrorAuthenticationGrant { }
+export class ErrorServerError extends ErrorAuthenticationGrant { }
+export class ErrorTemporarilyUnavailable extends ErrorAuthenticationGrant { }
+
+/**
+ * A list of possible access token response errors.
+ */
+export class ErrorAccessTokenResponse extends ErrorOAuth2 { }
+export class ErrorInvalidClient extends ErrorAccessTokenResponse { }
+export class ErrorInvalidGrant extends ErrorAccessTokenResponse { }
+export class ErrorUnsupportedGrantType extends ErrorAccessTokenResponse { }
+
+export const RawErrorToErrorClassMap: { [_: string]: any } = {
+  invalid_request: ErrorInvalidRequest,
+  invalid_grant: ErrorInvalidGrant,
+  unauthorized_client: ErrorUnauthorizedClient,
+  access_denied: ErrorAccessDenied,
+  unsupported_response_type: ErrorUnsupportedResponseType,
+  invalid_scope: ErrorInvalidScope,
+  server_error: ErrorServerError,
+  temporarily_unavailable: ErrorTemporarilyUnavailable,
+  invalid_client: ErrorInvalidClient,
+  unsupported_grant_type: ErrorUnsupportedGrantType,
+  invalid_json: ErrorInvalidJson,
+};
+
+export function toErrorClass(rawError: string): ErrorOAuth2 {
+  return new (RawErrorToErrorClassMap[rawError] || ErrorUnknown)();
+}
 
 /**
  * To store the OAuth client's data between websites due to redirection.
@@ -76,9 +140,6 @@ export class OAuth2AuthCodePKCE {
   constructor(config: Configuration) {
     this.config = config;
     this.recoverState();
-    if (this.captureGrantCodeAndNotifyIfReturning()) {
-      this.getAccessToken();
-    }
     return this;
   }
 
@@ -96,17 +157,17 @@ export class OAuth2AuthCodePKCE {
   /**
    * If there is an error, it will be passed back as a rejected Promise.
    * If there is no code, the user should be redirected via
-   * [fetchAuthorizationGrant].
+   * [fetchAuthorizationCode].
    */
-  private captureGrantCodeAndNotifyIfReturning(): boolean {
+  private isReturningFromAuthServer(): Promise<boolean> {
     const error = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'error');
     if (error) {
-      return false;
+      return Promise.reject(toErrorClass(error));
     }
 
     const code = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'code');
     if (!code) {
-      return false;
+      return Promise.resolve(false);
     }
 
     const state = JSON.parse(localStorage.getItem(LOCALSTORAGE_STATE) || '{}');
@@ -114,43 +175,41 @@ export class OAuth2AuthCodePKCE {
     const stateQueryParam = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'state');
     if (stateQueryParam !== state.stateQueryParam) {
       console.warn("state query string parameter doesn't match the one sent! Possible malicious activity somewhere.");
-      return false;
+      return Promise.reject(new ErrorInvalidReturnedStateParam());
     }
 
-    state.authorizationGrantCode = code;
+    state.authorizationCode = code;
+    state.hasAuthCodeBeenExchangedForAccessToken = false;
     localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(state));
 
     this.setState(state);
-    return true;
+    return Promise.resolve(true);
   }
 
   /**
    * Fetch an access token from the remote service. You may pass a custom
    * authorization grant code for any reason, but this is non-standard usage.
-   *
-   * This method should never return undefined, but was put here to satisfy the
-   * TypeScript typechecker.
    */
-  private fetchAccessTokenWithGrant(
+  private exchangeAuthCodeForAccessToken(
     codeOverride?: string
-  ): Promise<AccessToken> {
+  ): Promise<AccessContext> {
     this.assertStateAndConfigArePresent();
 
     const {
-      authorizationGrantCode = codeOverride,
+      authorizationCode = codeOverride,
       codeVerifier = ''
     } = this.state;
     const { clientId, onInvalidGrant, redirectUrl } = this.config;
 
     if (!codeVerifier) {
       console.warn('No code verifier is being sent.');
-    } else if (!authorizationGrantCode) {
+    } else if (!authorizationCode) {
       console.warn('No authorization grant code is being passed.');
     }
 
     const url = this.config.tokenUrl;
     const body = `grant_type=authorization_code&`
-      + `code=${encodeURIComponent(authorizationGrantCode || '')}&`
+      + `code=${encodeURIComponent(authorizationCode || '')}&`
       + `redirect_uri=${encodeURIComponent(redirectUrl)}&`
       + `client_id=${encodeURIComponent(clientId)}&`
       + `code_verifier=${codeVerifier}`;
@@ -162,38 +221,50 @@ export class OAuth2AuthCodePKCE {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
     })
-    .then(res => res.status === 400 ? Promise.reject(res.json()) : res.json())
-    .then(({ access_token, expires_in, refresh_token }) => {
-      const accessToken: AccessToken = {
-        value: access_token,
-        expiry: (new Date(Date.now() + (parseInt(expires_in) * 1000))).toString()
-      };
-      this.state.accessToken = accessToken;
+    .then(res => {
+      const jsonPromise = res.json()
+        .catch(jsonDecodeError => ({ error: 'invalid_json' }));
 
-      if (refresh_token) {
-        const refreshToken: RefreshToken = {
-          value: refresh_token
+      if (!res.ok) {
+        return jsonPromise.then(({ error }: any) => {
+          switch (error) {
+            case 'invalid_grant':
+              onInvalidGrant(() => this.fetchAuthorizationCode());
+              break;
+            default:
+              break;
+          }
+          return Promise.reject(toErrorClass(error));
+        });
+      }
+      
+      return jsonPromise.then(({ access_token, expires_in, refresh_token, scope }) => {
+        let scopes = [];
+        this.state.hasAuthCodeBeenExchangedForAccessToken = true;
+
+        const accessToken: AccessToken = {
+          value: access_token,
+          expiry: (new Date(Date.now() + (parseInt(expires_in) * 1000))).toString()
         };
-        this.state.refreshToken = refreshToken;
-      }
+        this.state.accessToken = accessToken;
 
-      localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
-      return accessToken;
-    })
-    .catch((jsonPromise) => jsonPromise.then((json: any) => Promise.reject(json)))
-    .catch((data) => {
-      console.log(data);
-      const error = data.error || 'There was a network error.';
-      switch (error) {
-        case 'invalid_grant':
-          onInvalidGrant(() => this
-            .fetchAuthorizationGrant()
-            .catch(error => console.error(error))
-          );
-        default:
-          break;
-      }
-      return Promise.reject(error);
+        if (refresh_token) {
+          const refreshToken: RefreshToken = {
+            value: refresh_token
+          };
+          this.state.refreshToken = refreshToken;
+        }
+
+        if (scope) {
+          // Multiple scopes are passed and delimited by spaces,
+          // despite using the singular name "scope".
+          scopes = scope.split(' ');
+          this.state.scopes = scopes;
+        }
+
+        localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
+        return { token: accessToken, scopes };
+      });
     });
   }
 
@@ -201,7 +272,7 @@ export class OAuth2AuthCodePKCE {
    * Fetch an authorization grant via redirection. In a sense this function
    * doesn't return because of the redirect behavior (uses `location.replace`).
    */
-  public async fetchAuthorizationGrant(): Promise<void> {
+  public async fetchAuthorizationCode(): Promise<void> {
     this.assertStateAndConfigArePresent();
 
     const { clientId, redirectUrl, scopes } = this.config;
@@ -237,42 +308,42 @@ export class OAuth2AuthCodePKCE {
    * [onAccessTokenExpiry] but it's up to the user to call the refresh token
    * function. This is because sometimes not using the refresh token facilities
    * is easier.
-   *
-   * Typically you always want to use this over [fetchAccessTokenWithGrant].
    */
-  public getAccessToken(): Promise<AccessToken | undefined> {
+  public getAccessToken(): Promise<AccessContext> {
     this.assertStateAndConfigArePresent();
 
     const { onAccessTokenExpiry } = this.config;
-    const { accessToken, authorizationGrantCode, refreshToken } = this.state;
-    if (!authorizationGrantCode) {
-      return Promise.reject({ error: 'no_auth_code' });
+    const {
+      accessToken,
+      authorizationCode,
+      hasAuthCodeBeenExchangedForAccessToken,
+      refreshToken,
+      scopes
+    } = this.state;
+
+    if (!authorizationCode) {
+      return Promise.reject(new ErrorNoAuthCode());
     }
 
-    if (!accessToken) {
+    if (!accessToken || !hasAuthCodeBeenExchangedForAccessToken) {
       console.log('Getting access token with grant');
-      return this.fetchAccessTokenWithGrant();
+      return this.exchangeAuthCodeForAccessToken();
     }
 
-    // If there's no refresh token, attempt with the auth grant code.
-    if (!refreshToken && (new Date()) >= (new Date(accessToken.expiry))) {
-      console.log('Renewing access token with grant');
-      return onAccessTokenExpiry(() => this.fetchAccessTokenWithGrant());
-    }
-
-    if ((new Date()) >= (new Date(accessToken.expiry))) {
+    // Depending on the server (and config), refreshToken may not be available.
+    if (refreshToken && (new Date()) >= (new Date(accessToken.expiry))) {
       console.log('Renewing access token with refresh token');
-      return onAccessTokenExpiry(() => this.refreshAccessToken());
+      return onAccessTokenExpiry(() => this.exchangeRefreshTokenForAccessToken());
     }
 
     console.log('Access token is accessible and valid');
-    return Promise.resolve(accessToken);
+    return Promise.resolve({ token: accessToken, scopes });
   }
 
   /**
    * Refresh an access token from the remote service.
    */
-  public refreshAccessToken(): Promise<AccessToken> {
+  public exchangeRefreshTokenForAccessToken(): Promise<AccessContext> {
     this.assertStateAndConfigArePresent();
 
     const { onInvalidGrant, tokenUrl } = this.config;
@@ -294,7 +365,9 @@ export class OAuth2AuthCodePKCE {
       }
     })
     .then(res => res.status === 400 ? Promise.reject(res.json()) : res.json())
-    .then(({ access_token, expires_in, refresh_token }) => {
+    .then(({ access_token, expires_in, refresh_token, scope }) => {
+      let scopes = [];
+
       const accessToken: AccessToken = {
         value: access_token,
         expiry: (new Date(Date.now() + parseInt(expires_in))).toString()
@@ -308,23 +381,32 @@ export class OAuth2AuthCodePKCE {
         this.state.refreshToken = refreshToken;
       }
 
+      if (scope) {
+        // Multiple scopes are passed and delimited by spaces,
+        // despite using the singular name "scope".
+        scopes = scope.split(' ');
+        this.state.scopes = scopes;
+      }
+
       localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
-      return accessToken;
+      return { token: accessToken, scopes };
     })
     .catch(jsonPromise => Promise.reject(jsonPromise))
     .catch(data => {
       const error = data.error || 'There was a network error.';
       switch (error) {
         case 'invalid_grant':
-          onInvalidGrant(() => this
-            .fetchAuthorizationGrant()
-            .catch(error => console.error(error))
-          );
+          onInvalidGrant(() => this.fetchAuthorizationCode());
+          break;
         default:
           break;
       }
       return Promise.reject(error);
     });
+  }
+
+  public getGrantedScopes(): Scopes {
+    return this.state.scopes;
   }
 
   private recoverState(): this {
