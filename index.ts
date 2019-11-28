@@ -159,7 +159,7 @@ export class OAuth2AuthCodePKCE {
    * If there is no code, the user should be redirected via
    * [fetchAuthorizationCode].
    */
-  private isReturningFromAuthServer(): Promise<boolean> {
+  public isReturningFromAuthServer(): Promise<boolean> {
     const error = OAuth2AuthCodePKCE.extractParamFromUrl(location.href, 'error');
     if (error) {
       return Promise.reject(toErrorClass(error));
@@ -223,7 +223,7 @@ export class OAuth2AuthCodePKCE {
     })
     .then(res => {
       const jsonPromise = res.json()
-        .catch(jsonDecodeError => ({ error: 'invalid_json' }));
+        .catch(_ => ({ error: 'invalid_json' }));
 
       if (!res.ok) {
         return jsonPromise.then(({ error }: any) => {
