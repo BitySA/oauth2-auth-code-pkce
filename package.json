@@ -4,6 +4,10 @@
   "description": "An OAuth 2.0 client that ONLY supports Authorization Code flow with PKCE support.",
   "main": "index.js",
   "types": "index.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BitySA/oauth2-auth-code-pkce.git"
+  },
   "scripts": {
     "build:code:browser": "webpack",
     "build:code:es2015": "tsc -p tsconfig.json -m es2015",
