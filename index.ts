@@ -44,6 +44,7 @@ export interface AccessContext {
   scopes: Scopes;
 };
 
+export type HttpClient = ((...args: any[]) => Promise<any>);
 export type URL = string;
 
 /**
@@ -63,6 +64,7 @@ export class ErrorInvalidJson extends ErrorOAuth2 { }
 // Errors that occur across many endpoints
 export class ErrorInvalidScope extends ErrorOAuth2 { }
 export class ErrorInvalidRequest extends ErrorOAuth2 { }
+export class ErrorInvalidToken extends ErrorOAuth2 { }
 
 /**
  * Possible authorization grant errors given by the redirection from the
@@ -83,6 +85,14 @@ export class ErrorInvalidClient extends ErrorAccessTokenResponse { }
 export class ErrorInvalidGrant extends ErrorAccessTokenResponse { }
 export class ErrorUnsupportedGrantType extends ErrorAccessTokenResponse { }
 
+/**
+ * WWW-Authenticate error object structure for less error prone handling.
+ */
+export class ErrorWWWAuthenticate {
+  public realm: string;
+  public error: string;
+}
+
 export const RawErrorToErrorClassMap: { [_: string]: any } = {
   invalid_request: ErrorInvalidRequest,
   invalid_grant: ErrorInvalidGrant,
@@ -95,11 +105,39 @@ export const RawErrorToErrorClassMap: { [_: string]: any } = {
   invalid_client: ErrorInvalidClient,
   unsupported_grant_type: ErrorUnsupportedGrantType,
   invalid_json: ErrorInvalidJson,
+  invalid_token: ErrorInvalidToken,
 };
 
+/**
+ * Translate the raw error strings returned from the server into error classes.
+ */
 export function toErrorClass(rawError: string): ErrorOAuth2 {
   return new (RawErrorToErrorClassMap[rawError] || ErrorUnknown)();
 }
+
+/**
+ * A convience function to turn, for example, `Bearer realm="bity.com", 
+ * error="invalid_client"` into `{ realm: "bity.com", error: "invalid_client"
+ * }`.
+ */
+export function fromWWWAuthenticateHeaderStringToObject(
+  a: string
+): ErrorWWWAuthenticate {
+  const obj = a
+    .slice("Bearer ".length)
+    .replace(/"/g, '')
+    .split(', ')
+    .map(tokens => { const [k,v] = tokens.split('='); return {[k]:v}; })
+    .reduce((a, c) => ({ ...a, ...c}));
+
+  return { realm: obj.realm, error: obj.error };
+}
+
+/**
+ * HTTP headers that we need to access.
+ */
+const HEADER_AUTHORIZATION = "Authorization";
+const HEADER_WWW_AUTHENTICATE= "WWW-Authenticate";
 
 /**
  * To store the OAuth client's data between websites due to redirection.
@@ -144,14 +182,39 @@ export class OAuth2AuthCodePKCE {
   }
 
   /**
-   * If the state or config are missing, it means the client is in a bad state.
-   * This should never happen, but the check is there just in case.
+   * Attach the OAuth logic to all fetch requests and translate errors (either
+   * returned as json or through the WWW-Authenticate header) into nice error
+   * classes.
    */
-  private assertStateAndConfigArePresent() {
-    if (!this.state || !this.config) {
-      console.error('state:', this.state, 'config:', this.config);
-      throw new Error('state or config is not set.');
-    }
+  public decorateFetchHTTPClient(fetch: HttpClient): HttpClient {
+    return (url: string, config: any, ...rest) => {
+      return this
+        .getAccessToken()
+        .then(({ token }: AccessContext) => {
+          const configNew: any = Object.assign({}, config);
+          if (!configNew.headers) {
+            configNew.headers = {};
+          }
+
+          configNew.headers[HEADER_AUTHORIZATION] = `Bearer ${token.value}`;
+          return fetch(url, configNew, ...rest);
+        })
+        .then((res) => {
+          if (res.ok) {
+            return res;
+          }
+
+          if (!res.headers.has(HEADER_WWW_AUTHENTICATE.toLowerCase())) {
+            return res;
+          }
+
+          return Promise.reject(toErrorClass(
+              fromWWWAuthenticateHeaderStringToObject(
+                res.headers.get(HEADER_WWW_AUTHENTICATE.toLowerCase())
+              ).error
+            ));
+        });
+    };
   }
 
   /**
@@ -184,88 +247,6 @@ export class OAuth2AuthCodePKCE {
 
     this.setState(state);
     return Promise.resolve(true);
-  }
-
-  /**
-   * Fetch an access token from the remote service. You may pass a custom
-   * authorization grant code for any reason, but this is non-standard usage.
-   */
-  private exchangeAuthCodeForAccessToken(
-    codeOverride?: string
-  ): Promise<AccessContext> {
-    this.assertStateAndConfigArePresent();
-
-    const {
-      authorizationCode = codeOverride,
-      codeVerifier = ''
-    } = this.state;
-    const { clientId, onInvalidGrant, redirectUrl } = this.config;
-
-    if (!codeVerifier) {
-      console.warn('No code verifier is being sent.');
-    } else if (!authorizationCode) {
-      console.warn('No authorization grant code is being passed.');
-    }
-
-    const url = this.config.tokenUrl;
-    const body = `grant_type=authorization_code&`
-      + `code=${encodeURIComponent(authorizationCode || '')}&`
-      + `redirect_uri=${encodeURIComponent(redirectUrl)}&`
-      + `client_id=${encodeURIComponent(clientId)}&`
-      + `code_verifier=${codeVerifier}`;
-
-    return fetch(url, {
-      method: 'POST',
-      body,
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    })
-    .then(res => {
-      const jsonPromise = res.json()
-        .catch(_ => ({ error: 'invalid_json' }));
-
-      if (!res.ok) {
-        return jsonPromise.then(({ error }: any) => {
-          switch (error) {
-            case 'invalid_grant':
-              onInvalidGrant(() => this.fetchAuthorizationCode());
-              break;
-            default:
-              break;
-          }
-          return Promise.reject(toErrorClass(error));
-        });
-      }
-      
-      return jsonPromise.then(({ access_token, expires_in, refresh_token, scope }) => {
-        let scopes = [];
-        this.state.hasAuthCodeBeenExchangedForAccessToken = true;
-
-        const accessToken: AccessToken = {
-          value: access_token,
-          expiry: (new Date(Date.now() + (parseInt(expires_in) * 1000))).toString()
-        };
-        this.state.accessToken = accessToken;
-
-        if (refresh_token) {
-          const refreshToken: RefreshToken = {
-            value: refresh_token
-          };
-          this.state.refreshToken = refreshToken;
-        }
-
-        if (scope) {
-          // Multiple scopes are passed and delimited by spaces,
-          // despite using the singular name "scope".
-          scopes = scope.split(' ');
-          this.state.scopes = scopes;
-        }
-
-        localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
-        return { token: accessToken, scopes };
-      });
-    });
   }
 
   /**
@@ -408,6 +389,100 @@ export class OAuth2AuthCodePKCE {
   public getGrantedScopes(): Scopes {
     return this.state.scopes;
   }
+
+  /**
+   * If the state or config are missing, it means the client is in a bad state.
+   * This should never happen, but the check is there just in case.
+   */
+  private assertStateAndConfigArePresent() {
+    if (!this.state || !this.config) {
+      console.error('state:', this.state, 'config:', this.config);
+      throw new Error('state or config is not set.');
+    }
+  }
+
+  /**
+   * Fetch an access token from the remote service. You may pass a custom
+   * authorization grant code for any reason, but this is non-standard usage.
+   */
+  private exchangeAuthCodeForAccessToken(
+    codeOverride?: string
+  ): Promise<AccessContext> {
+    this.assertStateAndConfigArePresent();
+
+    const {
+      authorizationCode = codeOverride,
+      codeVerifier = ''
+    } = this.state;
+    const { clientId, onInvalidGrant, redirectUrl } = this.config;
+
+    if (!codeVerifier) {
+      console.warn('No code verifier is being sent.');
+    } else if (!authorizationCode) {
+      console.warn('No authorization grant code is being passed.');
+    }
+
+    const url = this.config.tokenUrl;
+    const body = `grant_type=authorization_code&`
+      + `code=${encodeURIComponent(authorizationCode || '')}&`
+      + `redirect_uri=${encodeURIComponent(redirectUrl)}&`
+      + `client_id=${encodeURIComponent(clientId)}&`
+      + `code_verifier=${codeVerifier}`;
+
+    return fetch(url, {
+      method: 'POST',
+      body,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    })
+    .then(res => {
+      const jsonPromise = res.json()
+        .catch(_ => ({ error: 'invalid_json' }));
+
+      if (!res.ok) {
+        return jsonPromise.then(({ error }: any) => {
+          switch (error) {
+            case 'invalid_grant':
+              onInvalidGrant(() => this.fetchAuthorizationCode());
+              break;
+            default:
+              break;
+          }
+          return Promise.reject(toErrorClass(error));
+        });
+      }
+      
+      return jsonPromise.then(({ access_token, expires_in, refresh_token, scope }) => {
+        let scopes = [];
+        this.state.hasAuthCodeBeenExchangedForAccessToken = true;
+
+        const accessToken: AccessToken = {
+          value: access_token,
+          expiry: (new Date(Date.now() + (parseInt(expires_in) * 1000))).toString()
+        };
+        this.state.accessToken = accessToken;
+
+        if (refresh_token) {
+          const refreshToken: RefreshToken = {
+            value: refresh_token
+          };
+          this.state.refreshToken = refreshToken;
+        }
+
+        if (scope) {
+          // Multiple scopes are passed and delimited by spaces,
+          // despite using the singular name "scope".
+          scopes = scope.split(' ');
+          this.state.scopes = scopes;
+        }
+
+        localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
+        return { token: accessToken, scopes };
+      });
+    });
+  }
+
 
   private recoverState(): this {
     this.state = JSON.parse(localStorage.getItem(LOCALSTORAGE_STATE) || '{}');
