@@ -1,6 +1,6 @@
 {
   "name": "@bity/oauth2-auth-code-pkce",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "An OAuth 2.0 client that ONLY supports Authorization Code flow with PKCE support.",
   "main": "index.js",
   "types": "index.ts",
