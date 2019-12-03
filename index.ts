@@ -529,7 +529,7 @@ export class OAuth2AuthCodePKCE {
     }
 
     const paramIdx = parts.indexOf(param);
-    return paramIdx >= 0 ? parts[paramIdx + 1] : '';
+    return decodeURIComponent(paramIdx >= 0 ? parts[paramIdx + 1] : '');
   }
 
   /**
