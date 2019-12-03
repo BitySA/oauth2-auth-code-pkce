@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build:code:browser": "webpack",
-    "build:code:es2015": "tsc -p tsconfig.json -m es2015",
+    "build:code:es2015": "tsc -p tsconfig.json -m commonjs",
     "build:code": "npm run build:code:browser; npm run build:code:es2015",
     "build": "npm run build:code",
     "serve:tests": "http-server ./ --cors"

@@ -16,9 +16,9 @@ module.exports = {
     extensions: [ '.tsx', '.ts', '.js' ],
   },
   output: {
-    libraryTarget: 'commonjs2',
+    libraryTarget: 'umd',
     library: 'OAuth2AuthCodePKCE',
-    filename: 'oauth2-auth-code-pkce.js',
+    filename: 'index.umd.js',
     path: path.resolve(__dirname, './'),
   },
 };

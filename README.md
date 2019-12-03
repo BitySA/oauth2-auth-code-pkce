@@ -27,8 +27,8 @@ Modify the example to use the correct configuration.
 
 | Module system                   | File                      |
 |:--------------------------------|:--------------------------|
-| ESModules (import/export)       | index.js                  |
-| CommonJS2 (require e.g. nodejs) | oauth2-auth-code-pkce.js  |
+| Browser (window)                | index.umd.js              |
+| CommonJS (require e.g. nodejs)  | index.js                  |
 | TypeScript                      | index.ts                  |
 
 ## Development

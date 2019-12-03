@@ -1,4 +1,5 @@
 *.tgz
 index.js
+index.umd.js
 node_modules
 oauth2-auth-code-pkce.js

@@ -1,9 +1,8 @@
 <button onclick="authorize()">Authorize</button>
 
-<script>let module = {};</script>
-<script src="../oauth2-auth-code-pkce.js"></script>
+<script src="../index.umd.js"></script>
 <script>
-const { OAuth2AuthCodePKCE } = module.exports;
+const { OAuth2AuthCodePKCE } = window.OAuth2AuthCodePKCE;
 
 // This is just an example using our infrastructure. This was developed against
 // ORY Hydra, if that help to know. You will need to change the values to
@@ -11,7 +10,7 @@ const { OAuth2AuthCodePKCE } = module.exports;
 const oauth = new OAuth2AuthCodePKCE({
   authorizationUrl: 'https://connect.bity.io/oauth2/auth',
   tokenUrl: 'https://connect.bity.io/oauth2/token',
-  clientId: 'your-client-id',
+  clientId: '960d4256-97b7-4f21-b209-26f47874448a',
   scopes: ['https://auth.bity.io/scopes/exchange.place', 'https://auth.bity.io/scopes/exchange.history'],
   redirectUrl: 'http://localhost:8080/tests/panel.html',
   onAccessTokenExpiry(refreshAccessToken) {
