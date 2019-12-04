@@ -515,12 +515,15 @@ export class OAuth2AuthCodePKCE {
    * Extracts a query string parameter.
    */
   static extractParamFromUrl(url: URL, param: string): string {
-    const queryString = url.split('?');
+    let queryString = url.split('?');
     if (queryString.length < 2) {
        return '';
     }
 
-    const parts = queryString[1]
+    // Account for hash URLs that SPAs usually use.
+    queryString = queryString[1].split('#');
+
+    const parts = queryString[0]
       .split('&')
       .reduce((a: string[], s: string) => a.concat(s.split('=')), []);
 
