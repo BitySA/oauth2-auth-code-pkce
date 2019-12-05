@@ -212,11 +212,18 @@ export class OAuth2AuthCodePKCE {
             return res;
           }
 
-          return Promise.reject(toErrorClass(
-              fromWWWAuthenticateHeaderStringToObject(
-                res.headers.get(HEADER_WWW_AUTHENTICATE.toLowerCase())
-              ).error
-            ));
+          const error = toErrorClass(
+            fromWWWAuthenticateHeaderStringToObject(
+              res.headers.get(HEADER_WWW_AUTHENTICATE.toLowerCase())
+            ).error
+          );
+
+          if (error === ErrorInvalidToken) {
+            this.config
+              .onAccessTokenExpiry(() => this.exchangeRefreshTokenForAccessToken());
+          }
+
+          return Promise.reject(error);
         });
     };
   }
