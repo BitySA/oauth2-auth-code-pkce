@@ -549,7 +549,8 @@ export class OAuth2AuthCodePKCE {
    */
   static removeQueryParams(url: URL): string {
     const [urlPart, queryStringAndHashUrlPart] = url.split('?');
-    const [_queryStringPart, hashUrlPart] = queryStringAndHashUrlPart.split('#');
+    // @ts-ignore
+    const [_queryParamsPart, hashUrlPart] = queryStringAndHashUrlPart.split('#');
     return `${urlPart}#${hashUrlPart}`;
   }
 
