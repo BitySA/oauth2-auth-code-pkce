@@ -1,10 +1,11 @@
 image: node:lts-buster
 
 stages:
-  - Stage 0
+  - Build
+  - Publish
 
 build:
-  stage: Stage 0
+  stage: Build
   script:
     - npm install
     - npm run build
@@ -12,7 +13,16 @@ build:
     - tar -tf *.tgz | sort
     - test -z "$(git status --porcelain)" || (git status; false)
   artifacts:
-    name: tarball
     when: on_success
     paths:
       - "bity-oauth2-auth-code-pkce-*.tgz"
+
+publish:
+  stage: Publish
+  only:
+    refs:
+      - master
+  script:
+    - npm config set //registry.npmjs.org/:_authToken ${NPM_TOKEN}
+    - npm publish bity-oauth2-auth-code-pkce-*.tgz
+  when: manual
