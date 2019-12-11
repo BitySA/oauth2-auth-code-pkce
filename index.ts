@@ -18,6 +18,7 @@ export interface PKCECodes {
 }
 
 export interface State {
+  isActive?: boolean;
   accessToken?: AccessToken;
   authorizationCode?: string;
   codeChallenge?: string;
@@ -192,6 +193,10 @@ export class OAuth2AuthCodePKCE {
    */
   public decorateFetchHTTPClient(fetch: HttpClient): HttpClient {
     return (url: string, config: any, ...rest) => {
+      if (!this.state.isActive) {
+        return fetch(url, config, ...rest);
+      }
+
       return this
         .getAccessToken()
         .then(({ token }: AccessContext) => {
@@ -218,7 +223,7 @@ export class OAuth2AuthCodePKCE {
             ).error
           );
 
-          if (error === ErrorInvalidToken) {
+          if (error instanceof ErrorInvalidToken) {
             this.config
               .onAccessTokenExpiry(() => this.exchangeRefreshTokenForAccessToken());
           }
@@ -279,7 +284,8 @@ export class OAuth2AuthCodePKCE {
       ...this.state, 
       codeChallenge,
       codeVerifier,
-      stateQueryParam
+      stateQueryParam,
+      isActive: true
     };
 
     localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
@@ -320,17 +326,14 @@ export class OAuth2AuthCodePKCE {
     }
 
     if (!accessToken || !hasAuthCodeBeenExchangedForAccessToken) {
-      console.log('Getting access token with grant');
       return this.exchangeAuthCodeForAccessToken();
     }
 
     // Depending on the server (and config), refreshToken may not be available.
     if (refreshToken && (new Date()) >= (new Date(accessToken.expiry))) {
-      console.log('Renewing access token with refresh token');
       return onAccessTokenExpiry(() => this.exchangeRefreshTokenForAccessToken());
     }
 
-    console.log('Access token is accessible and valid');
     return Promise.resolve({ token: accessToken, scopes });
   }
 
@@ -401,6 +404,11 @@ export class OAuth2AuthCodePKCE {
 
   public getGrantedScopes(): Scopes {
     return this.state.scopes;
+  }
+
+  public isActive(isActive: boolean) {
+    this.state.isActive = isActive;
+    localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
   }
 
   /**
