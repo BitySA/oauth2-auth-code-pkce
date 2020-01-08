@@ -25,4 +25,6 @@ publish:
   script:
     - npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
     - npm publish "bity-oauth2-auth-code-pkce-${CI_COMMIT_TAG}.tgz"
+    - ls -l /root/.npm/_logs/
+    - cat /root/.npm/_logs/*debug.log
   when: manual
