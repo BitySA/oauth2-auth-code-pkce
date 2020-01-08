@@ -23,6 +23,6 @@ publish:
     refs:
       - tags
   script:
-    - npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
+    - npm config set //registry.npmjs.org/:_authToken ${NPM_TOKEN}
     - npm publish "bity-oauth2-auth-code-pkce-${CI_COMMIT_TAG}.tgz"
   when: manual
