@@ -179,6 +179,7 @@ const PKCE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345
 export class OAuth2AuthCodePKCE {
   private config?: Configuration;
   private state: State = {};
+  private authCodeForAccessTokenRequest?: Promise<AccessContext>;
 
   constructor(config: Configuration) {
     this.config = config;
@@ -325,8 +326,13 @@ export class OAuth2AuthCodePKCE {
       return Promise.reject(new ErrorNoAuthCode());
     }
 
+    if (this.authCodeForAccessTokenRequest) {
+      return this.authCodeForAccessTokenRequest;
+    }
+
     if (!accessToken || !hasAuthCodeBeenExchangedForAccessToken) {
-      return this.exchangeAuthCodeForAccessToken();
+      this.authCodeForAccessTokenRequest = this.exchangeAuthCodeForAccessToken();
+      return this.authCodeForAccessTokenRequest;
     }
 
     // Depending on the server (and config), refreshToken may not be available.
@@ -477,6 +483,7 @@ export class OAuth2AuthCodePKCE {
       return jsonPromise.then(({ access_token, expires_in, refresh_token, scope }) => {
         let scopes = [];
         this.state.hasAuthCodeBeenExchangedForAccessToken = true;
+        this.authCodeForAccessTokenRequest = undefined;
 
         const accessToken: AccessToken = {
           value: access_token,
