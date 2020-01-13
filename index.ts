@@ -408,13 +408,27 @@ export class OAuth2AuthCodePKCE {
     });
   }
 
+  /**
+   * Get the scopes that were granted by the authorization server.
+   */
   public getGrantedScopes(): Scopes {
     return this.state.scopes;
   }
 
+  /**
+   * Signals if OAuth HTTP decorating should be active or not.
+   */
   public isActive(isActive: boolean) {
     this.state.isActive = isActive;
     localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
+  }
+
+  /**
+   * Resets the state of the client. Equivalent to "logging out" the user.
+   */
+  public reset() {
+    this.setState({});
+    this.authCodeForAccessTokenRequest = undefined;
   }
 
   /**
