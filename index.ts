@@ -546,8 +546,14 @@ export class OAuth2AuthCodePKCE {
         });
       }
       
-      return jsonPromise.then(({ access_token, expires_in, refresh_token, scope }) => {
+      return jsonPromise.then(json => {
+        
+        const { access_token, expires_in, refresh_token, scope } = json;
+        
+        const { explicitlyExposedTokens } = this.config;
+      
         let scopes = [];
+        let tokensToExpose = {};
         this.state.hasAuthCodeBeenExchangedForAccessToken = true;
         this.authCodeForAccessTokenRequest = undefined;
 
@@ -564,16 +570,34 @@ export class OAuth2AuthCodePKCE {
           this.state.refreshToken = refreshToken;
         }
 
-        if (scope) {
-          // Multiple scopes are passed and delimited by spaces,
-          // despite using the singular name "scope".
-          scopes = scope.split(' ');
-          this.state.scopes = scopes;
+        if (explicitlyExposedTokens) {
+          tokensToExpose = explicitlyExposedTokens.reduce(
+            (a: ObjStringDict, token: string) =>
+              json[token] ? { ...a, [token]: json[token] } : a,
+            {}
+          );
+          this.state.explicitlyExposedTokens = tokensToExpose;
         }
-
-        localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
-        return { token: accessToken, scopes };
-      });
+        
+         if (scope) {
+            // Multiple scopes are passed and delimited by spaces,
+            // despite using the singular name "scope".
+            scopes = scope.split(' ');
+            this.state.scopes = scopes;
+          }
+  
+          localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
+          
+            if (Object.keys(tokensToExpose).length > 0) {
+              return {
+                explicitlyExposedTokens: tokensToExpose,
+                token: accessToken,
+                scopes
+              };
+            }
+    
+            return { token: accessToken, scopes };
+        });
     });
   }
 
