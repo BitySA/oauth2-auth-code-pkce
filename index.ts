@@ -3,12 +3,35 @@
  */
 
 export interface Configuration {
+  // The authorization server's URL to the authorization endpoint.
   authorizationUrl: URL;
+
+  // The OAuth client id which was given after registering for one by the OAuth
+  // provider.
   clientId: string;
+
+  // Additional tokens to explicitly expose from the access token request's
+  // response. It is not necessary to list the access and request tokens, they
+  // will always be included by default. A common use-case for this is to expose
+  // OpenID's `id_token`.
+  explicitlyExposedTokens?: string[];
+
+  // Called when the access token expires, and has a refresh function that can
+  // be used. It will fail if there is no refresh token returned.
   onAccessTokenExpiry: (refreshAccessToken: () => Promise<AccessContext>) => Promise<AccessContext>;
+
+  // Called when the entire grant becomes invalid. At this point, a new refresh
+  // token or authorization code needs to be fetched.
   onInvalidGrant: (refreshAuthCodeOrRefreshToken: () => Promise<void>) => void;
+
+  // The URL that we will be redirected back to. It has to match the one
+  // registered on the authorization server's side.
   redirectUrl: URL;
+
+  // The scopes to request for.
   scopes: string[];
+
+  // The authorization server's URL to the token endpoint.
   tokenUrl: URL;
 }
 
@@ -23,6 +46,7 @@ export interface State {
   authorizationCode?: string;
   codeChallenge?: string;
   codeVerifier?: string;
+  explicitlyExposedTokens?: ObjStringDict;
   hasAuthCodeBeenExchangedForAccessToken?: boolean;
   refreshToken?: RefreshToken;
   stateQueryParam?: string;
@@ -42,9 +66,11 @@ export type Scopes = string[];
 
 export interface AccessContext {
   token: AccessToken;
+  explicitlyExposedTokens?: ObjStringDict;
   scopes: Scopes;
 };
 
+export type ObjStringDict = { [_: string]: string };
 export type HttpClient = ((...args: any[]) => Promise<any>);
 export type URL = string;
 
@@ -317,6 +343,7 @@ export class OAuth2AuthCodePKCE {
     const {
       accessToken,
       authorizationCode,
+      explicitlyExposedTokens,
       hasAuthCodeBeenExchangedForAccessToken,
       refreshToken,
       scopes
@@ -340,7 +367,7 @@ export class OAuth2AuthCodePKCE {
       return onAccessTokenExpiry(() => this.exchangeRefreshTokenForAccessToken());
     }
 
-    return Promise.resolve({ token: accessToken, scopes });
+    return Promise.resolve({ token: accessToken, explicitlyExposedTokens, scopes });
   }
 
   /**
@@ -349,7 +376,7 @@ export class OAuth2AuthCodePKCE {
   public exchangeRefreshTokenForAccessToken(): Promise<AccessContext> {
     this.assertStateAndConfigArePresent();
 
-    const { onInvalidGrant, tokenUrl } = this.config;
+    const { tokenUrl } = this.config;
     const { refreshToken } = this.state;
 
     if (!refreshToken) {
@@ -368,8 +395,11 @@ export class OAuth2AuthCodePKCE {
       }
     })
     .then(res => res.status === 400 ? Promise.reject(res.json()) : res.json())
-    .then(({ access_token, expires_in, refresh_token, scope }) => {
+    .then((json) => {
+      const { access_token, expires_in, refresh_token, scope } = json;
+      const { explicitlyExposedTokens } = this.config;
       let scopes = [];
+      let tokensToExpose = {};
 
       const accessToken: AccessToken = {
         value: access_token,
@@ -384,6 +414,15 @@ export class OAuth2AuthCodePKCE {
         this.state.refreshToken = refreshToken;
       }
 
+      if (explicitlyExposedTokens) {
+        tokensToExpose = explicitlyExposedTokens.reduce(
+          (a: ObjStringDict, token: string) =>
+            json[token] ? { ...a, [token]: json[token] } : a,
+          {}
+        );
+        this.state.explicitlyExposedTokens = tokensToExpose;
+      }
+
       if (scope) {
         // Multiple scopes are passed and delimited by spaces,
         // despite using the singular name "scope".
@@ -392,10 +431,23 @@ export class OAuth2AuthCodePKCE {
       }
 
       localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
-      return { token: accessToken, scopes };
+
+      if (Object.keys(tokensToExpose).length > 0) {
+        return {
+          explicitlyExposedTokens: tokensToExpose,
+          token: accessToken,
+          scopes
+        };
+      }
+
+      return {
+        token: accessToken,
+        scopes
+      };
     })
     .catch(jsonPromise => Promise.reject(jsonPromise))
     .catch(data => {
+      const { onInvalidGrant } = this.config;
       const error = data.error || 'There was a network error.';
       switch (error) {
         case 'invalid_grant':

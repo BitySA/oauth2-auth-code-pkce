@@ -23,6 +23,11 @@ This page acts as a test panel for various scenarios. Play around! :)
 
 Modify the example to use the correct configuration.
 
+## Documentation
+
+Documentation can be generated from the Typedoc comments. This means the code is
+well commented, so please see it for further reference.
+
 ## Module systems supported
 
 | Module system                   | File                      |
