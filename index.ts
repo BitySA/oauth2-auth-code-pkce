@@ -580,7 +580,7 @@ export class OAuth2AuthCodePKCE {
     const [urlPart, queryStringAndHashUrlPart] = url.split('?');
     // @ts-ignore
     const [_queryParamsPart, hashUrlPart] = queryStringAndHashUrlPart.split('#');
-    return `${urlPart}#${hashUrlPart}`;
+    return `${urlPart}${hashUrlPart !== undefined ? `#${hashUrlPart}` : ''}`;
   }
 
   /**
