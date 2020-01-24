@@ -330,13 +330,13 @@ export class OAuth2AuthCodePKCE {
       return this.authCodeForAccessTokenRequest;
     }
 
-    if (!accessToken || !hasAuthCodeBeenExchangedForAccessToken) {
+    if (!this.isAuthorized() || !hasAuthCodeBeenExchangedForAccessToken) {
       this.authCodeForAccessTokenRequest = this.exchangeAuthCodeForAccessToken();
       return this.authCodeForAccessTokenRequest;
     }
 
     // Depending on the server (and config), refreshToken may not be available.
-    if (refreshToken && (new Date()) >= (new Date(accessToken.expiry))) {
+    if (refreshToken && this.isAccessTokenExpired()) {
       return onAccessTokenExpiry(() => this.exchangeRefreshTokenForAccessToken());
     }
 
@@ -421,6 +421,22 @@ export class OAuth2AuthCodePKCE {
   public isActive(isActive: boolean) {
     this.state.isActive = isActive;
     localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
+  }
+
+  /**
+   * Tells if the client is authorized or not. This means the client has at
+   * least once successfully fetched an access token. The access token could be
+   * expired.
+   */
+  public isAuthorized(): boolean {
+    return !!this.state.accessToken;
+  }
+
+  /**
+   * Checks to see if the access token has expired.
+   */
+  public isAccessTokenExpired(): boolean {
+    return (new Date()) >= (new Date(accessToken.expiry));
   }
 
   /**
