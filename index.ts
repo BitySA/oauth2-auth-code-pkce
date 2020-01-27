@@ -18,7 +18,7 @@ export interface PKCECodes {
 }
 
 export interface State {
-  isActive?: boolean;
+  isHTTPDecoratorActive?: boolean;
   accessToken?: AccessToken;
   authorizationCode?: string;
   codeChallenge?: string;
@@ -194,7 +194,7 @@ export class OAuth2AuthCodePKCE {
    */
   public decorateFetchHTTPClient(fetch: HttpClient): HttpClient {
     return (url: string, config: any, ...rest) => {
-      if (!this.state.isActive) {
+      if (!this.state.isHTTPDecoratorActive) {
         return fetch(url, config, ...rest);
       }
 
@@ -286,7 +286,7 @@ export class OAuth2AuthCodePKCE {
       codeChallenge,
       codeVerifier,
       stateQueryParam,
-      isActive: true
+      isHTTPDecoratorActive: true
     };
 
     localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
@@ -418,8 +418,8 @@ export class OAuth2AuthCodePKCE {
   /**
    * Signals if OAuth HTTP decorating should be active or not.
    */
-  public isActive(isActive: boolean) {
-    this.state.isActive = isActive;
+  public isHTTPDecoratorActive(isActive: boolean) {
+    this.state.isHTTPDecoratorActive = isActive;
     localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
   }
 
