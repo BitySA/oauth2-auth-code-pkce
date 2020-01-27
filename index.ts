@@ -436,7 +436,8 @@ export class OAuth2AuthCodePKCE {
    * Checks to see if the access token has expired.
    */
   public isAccessTokenExpired(): boolean {
-    return (new Date()) >= (new Date(accessToken.expiry));
+    const { accessToken } = this.state;
+    return accessToken && (new Date()) >= (new Date(accessToken.expiry));
   }
 
   /**
