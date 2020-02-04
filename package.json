@@ -1,6 +1,6 @@
 {
   "name": "@bity/oauth2-auth-code-pkce",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "An OAuth 2.0 client that ONLY supports Authorization Code flow with PKCE support.",
   "main": "index.js",
   "types": "index.ts",
@@ -9,9 +9,9 @@
     "url": "https://github.com/BitySA/oauth2-auth-code-pkce.git"
   },
   "scripts": {
-    "build:code:browser": "webpack",
-    "build:code:es2015": "tsc -p tsconfig.json -m commonjs",
-    "build:code": "npm run build:code:browser; npm run build:code:es2015",
+    "build:code:browser": "browserify -s OAuth2AuthCodePKCE -e index.js --outfile index.umd.js",
+    "build:code:commonjs": "tsc -p tsconfig.json",
+    "build:code": "npm run build:code:commonjs && npm run build:code:browser",
     "build": "npm run build:code",
     "serve:tests": "http-server ./ --cors"
   },
@@ -23,10 +23,8 @@
   "author": "Lee Fallat",
   "license": "AGPL-3.0-only",
   "devDependencies": {
+    "browserify": "^16.5.0",
     "http-server": "^0.11.1",
-    "ts-loader": "^6.2.1",
-    "typescript": "^3.7.2",
-    "webpack": "^4.41.5",
-    "webpack-cli": "^3.3.10"
+    "typescript": "^3.7.5"
   }
 }

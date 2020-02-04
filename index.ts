@@ -41,8 +41,8 @@ export interface AccessToken {
 export type Scopes = string[];
 
 export interface AccessContext {
-  token: AccessToken;
-  scopes: Scopes;
+  token?: AccessToken;
+  scopes?: Scopes;
 };
 
 export type HttpClient = ((...args: any[]) => Promise<any>);
@@ -90,8 +90,8 @@ export class ErrorUnsupportedGrantType extends ErrorAccessTokenResponse { }
  * WWW-Authenticate error object structure for less error prone handling.
  */
 export class ErrorWWWAuthenticate {
-  public realm: string;
-  public error: string;
+  public realm: string = "";
+  public error: string = "";
 }
 
 export const RawErrorToErrorClassMap: { [_: string]: any } = {
@@ -177,7 +177,7 @@ const PKCE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345
  * For others, review this class's methods.
  */
 export class OAuth2AuthCodePKCE {
-  private config?: Configuration;
+  private config!: Configuration;
   private state: State = {};
   private authCodeForAccessTokenRequest?: Promise<AccessContext>;
 
@@ -206,7 +206,7 @@ export class OAuth2AuthCodePKCE {
             configNew.headers = {};
           }
 
-          configNew.headers[HEADER_AUTHORIZATION] = `Bearer ${token.value}`;
+          configNew.headers[HEADER_AUTHORIZATION] = `Bearer ${token!.value}`;
           return fetch(url, configNew, ...rest);
         })
         .then((res) => {
@@ -411,7 +411,7 @@ export class OAuth2AuthCodePKCE {
   /**
    * Get the scopes that were granted by the authorization server.
    */
-  public getGrantedScopes(): Scopes {
+  public getGrantedScopes(): Scopes | undefined {
     return this.state.scopes;
   }
 
@@ -437,7 +437,7 @@ export class OAuth2AuthCodePKCE {
    */
   public isAccessTokenExpired(): boolean {
     const { accessToken } = this.state;
-    return accessToken && (new Date()) >= (new Date(accessToken.expiry));
+    return Boolean(accessToken && (new Date()) >= (new Date(accessToken.expiry)));
   }
 
   /**
