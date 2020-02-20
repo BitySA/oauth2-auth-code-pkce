@@ -358,7 +358,8 @@ export class OAuth2AuthCodePKCE {
 
     const url = tokenUrl;
     const body = `grant_type=refresh_token&`
-      + `refresh_token=${refreshToken}`;
+      + `refresh_token=${refreshToken ? refreshToken.value : null}&`
+      + `client_id=${this.config.clientId}`;
 
     return fetch(url, {
       method: 'POST',
