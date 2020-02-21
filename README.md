@@ -16,6 +16,9 @@ Currently the only Type/JavaScript implementation in public existence.
 
 ## Usage
 
+See the source code of `tests/panel.html`. It's commented with helpful
+information.
+
 Run `npm run serve:tests` and navigate to 
 http://localhost:8080/tests/panel.html
 
