@@ -1,5 +1,7 @@
+<!-- authorize() defined just below. -->
 <button onclick="authorize()">Authorize</button>
 
+<!-- Includes the OAuth client. -->
 <script src="../index.umd.js"></script>
 <script>
 const { OAuth2AuthCodePKCE } = window.OAuth2AuthCodePKCE;
@@ -29,16 +31,9 @@ function authorize() { oauth.fetchAuthorizationCode(); }
 
 oauth.isReturningFromAuthServer().then(hasAuthCode => {
   if (!hasAuthCode) { console.log("Something wrong...no auth code."); }
-
-  oauth
-    .getAccessToken()
-    .then((token) => console.log(token))
-    .catch((potentialError) => {
-      if (potentialError) {
-        console.log(potentialError);
-        return;
-      }
-    });
+  return oauth.getAccessToken().then((token) => console.log(token));
 })
-.catch(error => console.log(error));
+.catch((potentialError) => {
+  if (potentialError) { console.log(potentialError); }
+});
 </script>
