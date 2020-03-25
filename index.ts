@@ -263,8 +263,6 @@ export class OAuth2AuthCodePKCE {
     localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(state));
 
     this.setState(state);
-    const urlWithoutQueryParams = OAuth2AuthCodePKCE.removeQueryParams(location.href);
-    window.history.replaceState({}, '', urlWithoutQueryParams);
     return Promise.resolve(true);
   }
 
@@ -588,16 +586,6 @@ export class OAuth2AuthCodePKCE {
 
     const paramIdx = parts.indexOf(param);
     return decodeURIComponent(paramIdx >= 0 ? parts[paramIdx + 1] : '');
-  }
-
-  /**
-   * Removes the query string parameters to clean up the URL.
-   */
-  static removeQueryParams(url: URL): string {
-    const [urlPart, queryStringAndHashUrlPart] = url.split('?');
-    // @ts-ignore
-    const [_queryParamsPart, hashUrlPart] = queryStringAndHashUrlPart.split('#');
-    return `${urlPart}${hashUrlPart !== undefined ? `#${hashUrlPart}` : ''}`;
   }
 
   /**
