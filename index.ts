@@ -347,7 +347,7 @@ export class OAuth2AuthCodePKCE {
   public exchangeRefreshTokenForAccessToken(): Promise<AccessContext> {
     this.assertStateAndConfigArePresent();
 
-    const { onInvalidGrant, tokenUrl } = this.config;
+    const { onInvalidGrant, tokenUrl, clientId } = this.config;
     const { refreshToken } = this.state;
 
     if (!refreshToken) {
@@ -356,7 +356,8 @@ export class OAuth2AuthCodePKCE {
 
     const url = tokenUrl;
     const body = `grant_type=refresh_token&`
-      + `refresh_token=${refreshToken?.value}`;
+      + `refresh_token=${refreshToken?.value}&`
+      + `client_id=${clientId}`;
 
     return fetch(url, {
       method: 'POST',
