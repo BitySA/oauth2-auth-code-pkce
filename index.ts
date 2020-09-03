@@ -309,10 +309,7 @@ export class OAuth2AuthCodePKCE {
       + `code_challenge_method=S256`;
 
     if (extraAuthorizeParams) {
-      url = Object.entries(extraAuthorizeParams).reduce(
-          (builtUrl: string, [key, val]: [string, string]) =>
-              builtUrl+`&${key}=${encodeURIComponent(val)}`,
-          url)
+      url = `${url}&${OAuth2AuthCodePKCE.objectToQueryString(extraAuthorizeParams)}`
     }
 
     location.replace(url);
@@ -377,10 +374,7 @@ export class OAuth2AuthCodePKCE {
       + `refresh_token=${refreshToken?.value}`;
 
     if (extraRefreshParams) {
-      body = Object.entries(extraRefreshParams).reduce(
-          (body: string, [key, val]: [string, string]) =>
-              body+`&${key}=${encodeURIComponent(val)}`,
-          body)
+      body = `${url}&${OAuth2AuthCodePKCE.objectToQueryString(extraRefreshParams)}`
     }
 
     return fetch(url, {
@@ -411,10 +405,10 @@ export class OAuth2AuthCodePKCE {
       }
 
       if (explicitlyExposedTokens) {
-        tokensToExpose = explicitlyExposedTokens.reduce(
-          (a: ObjStringDict, token: string) =>
-            json[token] ? { ...a, [token]: json[token] } : a,
-          {}
+        tokensToExpose = Object.fromEntries(
+          explicitlyExposedTokens
+            .map((tokenName: string): [string, string|undefined] => [tokenName, json[tokenName]])
+            .filter(([_, tokenValue]: [string, string|undefined]) => tokenValue !== undefined)
         );
         this.state.explicitlyExposedTokens = tokensToExpose;
       }
@@ -428,18 +422,11 @@ export class OAuth2AuthCodePKCE {
 
       localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
 
-      if (Object.keys(tokensToExpose).length > 0) {
-        return {
-          explicitlyExposedTokens: tokensToExpose,
-          token: accessToken,
-          scopes
-        };
+      let accessContext: AccessContext = {token: accessToken, scopes};
+      if (explicitlyExposedTokens) {
+        accessContext.explicitlyExposedTokens = tokensToExpose;
       }
-
-      return {
-        token: accessToken,
-        scopes
-      };
+      return accessContext;
     })
     .catch(data => {
       const { onInvalidGrant } = this.config;
@@ -580,10 +567,10 @@ export class OAuth2AuthCodePKCE {
         }
 
         if (explicitlyExposedTokens) {
-          tokensToExpose = explicitlyExposedTokens.reduce(
-            (a: ObjStringDict, token: string) =>
-              json[token] ? { ...a, [token]: json[token] } : a,
-            {}
+          tokensToExpose = Object.fromEntries(
+            explicitlyExposedTokens
+              .map((tokenName: string): [string, string|undefined] => [tokenName, json[tokenName]])
+              .filter(([_, tokenValue]: [string, string|undefined]) => tokenValue !== undefined)
           );
           this.state.explicitlyExposedTokens = tokensToExpose;
         }
@@ -597,18 +584,11 @@ export class OAuth2AuthCodePKCE {
 
         localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
 
-        if (Object.keys(tokensToExpose).length > 0) {
-          return {
-            explicitlyExposedTokens: tokensToExpose,
-            token: accessToken,
-            scopes
-          };
+        let accessContext: AccessContext = {token: accessToken, scopes};
+        if (explicitlyExposedTokens) {
+          accessContext.explicitlyExposedTokens = tokensToExpose;
         }
-
-        return {
-          token: accessToken,
-          scopes
-        };
+        return accessContext;
       });
     });
   }
@@ -659,6 +639,17 @@ export class OAuth2AuthCodePKCE {
 
     const paramIdx = parts.indexOf(param);
     return decodeURIComponent(paramIdx >= 0 ? parts[paramIdx + 1] : '');
+  }
+
+  /**
+   * Converts the keys and values of an object to a url query string
+   */
+  static objectToQueryString(dict: {[k: string]: string}): string {
+    return Object.entries(dict).map(
+        ([key, val]: [string, string]) => `${key}=${encodeURIComponent(val)}`
+      ).reduce(
+        (builtString: string, nextParam:string) => `${builtString}&${nextParam}`
+      )
   }
 
   /**
