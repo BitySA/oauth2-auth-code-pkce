@@ -276,10 +276,14 @@ export class OAuth2AuthCodePKCE {
    * Fetch an authorization grant via redirection. In a sense this function
    * doesn't return because of the redirect behavior (uses `location.replace`).
    */
-  public async fetchAuthorizationCode(): Promise<void> {
+  public async fetchAuthorizationCode(oneTimeParams: ObjStringDict = {}): Promise<void> {
     this.assertStateAndConfigArePresent();
 
-    const { clientId, redirectUrl, scopes, extraAuthorizeParams } = this.config;
+    const { clientId, redirectUrl, scopes } = this.config;
+    const extraAuthorizeParams: ObjStringDict = {
+      ...this.config.extraAuthorizeParams,
+      ...oneTimeParams
+    };
     const { codeChallenge, codeVerifier } = await OAuth2AuthCodePKCE
       .generatePKCECodes();
     const stateQueryParam = OAuth2AuthCodePKCE
