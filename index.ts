@@ -367,7 +367,7 @@ export class OAuth2AuthCodePKCE {
   public exchangeRefreshTokenForAccessToken(): Promise<AccessContext> {
     this.assertStateAndConfigArePresent();
 
-    const { tokenUrl, extraRefreshParams } = this.config;
+    const { extraRefreshParams, clientId, tokenUrl } = this.config;
     const { refreshToken } = this.state;
 
     if (!refreshToken) {
@@ -376,7 +376,8 @@ export class OAuth2AuthCodePKCE {
 
     const url = tokenUrl;
     let body = `grant_type=refresh_token&`
-      + `refresh_token=${refreshToken?.value}`;
+      + `refresh_token=${refreshToken?.value}&`
+      + `client_id=${clientId}`;
 
     if (extraRefreshParams) {
       body = `${url}&${OAuth2AuthCodePKCE.objectToQueryString(extraRefreshParams)}`
