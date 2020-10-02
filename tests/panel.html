@@ -10,11 +10,15 @@ const { OAuth2AuthCodePKCE } = window.OAuth2AuthCodePKCE;
 // ORY Hydra, if that help to know. You will need to change the values to
 // something you have access to.
 const oauth = new OAuth2AuthCodePKCE({
+  extraAuthorizationParams: {
+    'test': '1',
+    'hello': 'world'
+  },
   authorizationUrl: 'https://connect.bity.io/oauth2/auth',
   tokenUrl: 'https://connect.bity.io/oauth2/token',
-  clientId: '960d4256-97b7-4f21-b209-26f47874448a',
-  scopes: ['https://auth.bity.io/scopes/exchange.place', 'https://auth.bity.io/scopes/exchange.history'],
-  redirectUrl: 'http://localhost:8080/tests/panel.html',
+  clientId: '5e510f25-9c41-407b-8fe0-3825f7445b92',
+  scopes: ['https://auth.bity.io/scopes/bookmarks.manage'],
+  redirectUrl: 'http://localhost:8000/return',
   onAccessTokenExpiry(refreshAccessToken) {
     console.log("Expired! Access token needs to be renewed.");
     alert("We will try to get a new access token via grant code or refresh token.");

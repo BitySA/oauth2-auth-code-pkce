@@ -26,6 +26,35 @@ This page acts as a test panel for various scenarios. Play around! :)
 
 Modify the example to use the correct configuration.
 
+## Exposing other query string parameters on return
+
+Some OAuth servers will return additional parameters to the requester. In order
+to access these they must be explicitly asked for:
+
+```
+config.explicitlyExposedTokens = ['open_id'];
+```
+
+Then this will be available as a property:
+`accessContext.explicitlyExposedTokens.open_id`.
+
+## Extra parameters which other OAuth servers require
+
+It is probable you will encounter an OAuth server which requires some additional
+parameters. In order to pass extra parameters, add the following to the
+configuration:
+
+```
+config.extraAuthorizationParameters = { 'some_query_string_param': 'value', ... };
+```
+
+If you have values which need to be computed at run-time and then passed, you
+can pass them like so:
+
+```
+oauth2.fetchAuthorizationCode({ 'another_query_string_param': computedValue });
+```
+
 ## Module systems supported
 
 | Module system                   | File                      |

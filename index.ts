@@ -5,11 +5,14 @@
 export interface Configuration {
   authorizationUrl: URL;
   clientId: string;
+  explicitlyExposedTokens?: string[];
   onAccessTokenExpiry: (refreshAccessToken: () => Promise<AccessContext>) => Promise<AccessContext>;
   onInvalidGrant: (refreshAuthCodeOrRefreshToken: () => Promise<void>) => void;
   redirectUrl: URL;
   scopes: string[];
   tokenUrl: URL;
+  extraAuthorizationParams?: ObjStringDict;
+  extraRefreshParams?: ObjStringDict;
 }
 
 export interface PKCECodes {
@@ -23,6 +26,7 @@ export interface State {
   authorizationCode?: string;
   codeChallenge?: string;
   codeVerifier?: string;
+  explicitlyExposedTokens?: ObjStringDict;
   hasAuthCodeBeenExchangedForAccessToken?: boolean;
   refreshToken?: RefreshToken;
   stateQueryParam?: string;
@@ -42,9 +46,11 @@ export type Scopes = string[];
 
 export interface AccessContext {
   token?: AccessToken;
+  explicitlyExposedTokens?: ObjStringDict;
   scopes?: Scopes;
 };
 
+export type ObjStringDict = { [_: string]: string };
 export type HttpClient = ((...args: any[]) => Promise<any>);
 export type URL = string;
 
@@ -129,7 +135,7 @@ export function fromWWWAuthenticateHeaderStringToObject(
     .replace(/"/g, '')
     .split(', ')
     .map(tokens => { const [k,v] = tokens.split('='); return {[k]:v}; })
-    .reduce((a, c) => ({ ...a, ...c}));
+    .reduce((a, c) => ({ ...a, ...c}), {});
 
   return { realm: obj.realm, error: obj.error };
 }
@@ -269,11 +275,15 @@ export class OAuth2AuthCodePKCE {
   /**
    * Fetch an authorization grant via redirection. In a sense this function
    * doesn't return because of the redirect behavior (uses `location.replace`).
+   *
+   * @param oneTimeParams A way to specify "one time" used query string
+   * parameters during the authorization code fetching process, usually for
+   * values which need to change at run-time.
    */
-  public async fetchAuthorizationCode(): Promise<void> {
+  public async fetchAuthorizationCode(oneTimeParams?: ObjStringDict): Promise<void> {
     this.assertStateAndConfigArePresent();
 
-    const { clientId, redirectUrl, scopes } = this.config;
+    const { clientId, extraAuthorizationParams, redirectUrl, scopes } = this.config;
     const { codeChallenge, codeVerifier } = await OAuth2AuthCodePKCE
       .generatePKCECodes();
     const stateQueryParam = OAuth2AuthCodePKCE
@@ -289,7 +299,7 @@ export class OAuth2AuthCodePKCE {
 
     localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
 
-    const url = this.config.authorizationUrl
+    let url = this.config.authorizationUrl
       + `?response_type=code&`
       + `client_id=${encodeURIComponent(clientId)}&`
       + `redirect_uri=${encodeURIComponent(redirectUrl)}&`
@@ -297,6 +307,15 @@ export class OAuth2AuthCodePKCE {
       + `state=${stateQueryParam}&`
       + `code_challenge=${encodeURIComponent(codeChallenge)}&`
       + `code_challenge_method=S256`;
+
+    if (extraAuthorizationParams || oneTimeParams) {
+      const extraParameters: ObjStringDict = {
+        ...extraAuthorizationParams,
+        ...oneTimeParams
+      };
+
+      url = `${url}&${OAuth2AuthCodePKCE.objectToQueryString(extraParameters)}`
+    }
 
     location.replace(url);
   }
@@ -315,6 +334,7 @@ export class OAuth2AuthCodePKCE {
     const {
       accessToken,
       authorizationCode,
+      explicitlyExposedTokens,
       hasAuthCodeBeenExchangedForAccessToken,
       refreshToken,
       scopes
@@ -338,7 +358,7 @@ export class OAuth2AuthCodePKCE {
       return onAccessTokenExpiry(() => this.exchangeRefreshTokenForAccessToken());
     }
 
-    return Promise.resolve({ token: accessToken, scopes });
+    return Promise.resolve({ token: accessToken, explicitlyExposedTokens, scopes });
   }
 
   /**
@@ -347,7 +367,7 @@ export class OAuth2AuthCodePKCE {
   public exchangeRefreshTokenForAccessToken(): Promise<AccessContext> {
     this.assertStateAndConfigArePresent();
 
-    const { onInvalidGrant, tokenUrl } = this.config;
+    const { tokenUrl, extraRefreshParams } = this.config;
     const { refreshToken } = this.state;
 
     if (!refreshToken) {
@@ -355,8 +375,12 @@ export class OAuth2AuthCodePKCE {
     }
 
     const url = tokenUrl;
-    const body = `grant_type=refresh_token&`
+    let body = `grant_type=refresh_token&`
       + `refresh_token=${refreshToken?.value}`;
+
+    if (extraRefreshParams) {
+      body = `${url}&${OAuth2AuthCodePKCE.objectToQueryString(extraRefreshParams)}`
+    }
 
     return fetch(url, {
       method: 'POST',
@@ -365,9 +389,12 @@ export class OAuth2AuthCodePKCE {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
     })
-    .then(res => res.status === 400 ? Promise.reject(res.json()) : res.json())
-    .then(({ access_token, expires_in, refresh_token, scope }) => {
+    .then(res => res.status >= 400 ? res.json().then(data => Promise.reject(data)) : res.json())
+    .then((json) => {
+      const { access_token, expires_in, refresh_token, scope } = json;
+      const { explicitlyExposedTokens } = this.config;
       let scopes = [];
+      let tokensToExpose = {};
 
       const accessToken: AccessToken = {
         value: access_token,
@@ -382,6 +409,15 @@ export class OAuth2AuthCodePKCE {
         this.state.refreshToken = refreshToken;
       }
 
+      if (explicitlyExposedTokens) {
+        tokensToExpose = Object.fromEntries(
+          explicitlyExposedTokens
+            .map((tokenName: string): [string, string|undefined] => [tokenName, json[tokenName]])
+            .filter(([_, tokenValue]: [string, string|undefined]) => tokenValue !== undefined)
+        );
+        this.state.explicitlyExposedTokens = tokensToExpose;
+      }
+
       if (scope) {
         // Multiple scopes are passed and delimited by spaces,
         // despite using the singular name "scope".
@@ -390,10 +426,15 @@ export class OAuth2AuthCodePKCE {
       }
 
       localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
-      return { token: accessToken, scopes };
+
+      let accessContext: AccessContext = {token: accessToken, scopes};
+      if (explicitlyExposedTokens) {
+        accessContext.explicitlyExposedTokens = tokensToExpose;
+      }
+      return accessContext;
     })
-    .catch(jsonPromise => Promise.reject(jsonPromise))
     .catch(data => {
+      const { onInvalidGrant } = this.config;
       const error = data.error || 'There was a network error.';
       switch (error) {
         case 'invalid_grant':
@@ -402,7 +443,7 @@ export class OAuth2AuthCodePKCE {
         default:
           break;
       }
-      return Promise.reject(error);
+      return Promise.reject(toErrorClass(error));
     });
   }
 
@@ -509,8 +550,11 @@ export class OAuth2AuthCodePKCE {
         });
       }
       
-      return jsonPromise.then(({ access_token, expires_in, refresh_token, scope }) => {
+      return jsonPromise.then((json) => {
+        const { access_token, expires_in, refresh_token, scope } = json;
+        const { explicitlyExposedTokens } = this.config;
         let scopes = [];
+        let tokensToExpose = {};
         this.state.hasAuthCodeBeenExchangedForAccessToken = true;
         this.authCodeForAccessTokenRequest = undefined;
 
@@ -527,6 +571,15 @@ export class OAuth2AuthCodePKCE {
           this.state.refreshToken = refreshToken;
         }
 
+        if (explicitlyExposedTokens) {
+          tokensToExpose = Object.fromEntries(
+            explicitlyExposedTokens
+              .map((tokenName: string): [string, string|undefined] => [tokenName, json[tokenName]])
+              .filter(([_, tokenValue]: [string, string|undefined]) => tokenValue !== undefined)
+          );
+          this.state.explicitlyExposedTokens = tokensToExpose;
+        }
+
         if (scope) {
           // Multiple scopes are passed and delimited by spaces,
           // despite using the singular name "scope".
@@ -535,7 +588,12 @@ export class OAuth2AuthCodePKCE {
         }
 
         localStorage.setItem(LOCALSTORAGE_STATE, JSON.stringify(this.state));
-        return { token: accessToken, scopes };
+
+        let accessContext: AccessContext = {token: accessToken, scopes};
+        if (explicitlyExposedTokens) {
+          accessContext.explicitlyExposedTokens = tokensToExpose;
+        }
+        return accessContext;
       });
     });
   }
@@ -586,6 +644,15 @@ export class OAuth2AuthCodePKCE {
 
     const paramIdx = parts.indexOf(param);
     return decodeURIComponent(paramIdx >= 0 ? parts[paramIdx + 1] : '');
+  }
+
+  /**
+   * Converts the keys and values of an object to a url query string
+   */
+  static objectToQueryString(dict: ObjStringDict): string {
+    return Object.entries(dict).map(
+      ([key, val]: [string, string]) => `${key}=${encodeURIComponent(val)}`
+    ).join('&');
   }
 
   /**
