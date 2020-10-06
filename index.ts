@@ -48,6 +48,7 @@ export interface AccessContext {
   token?: AccessToken;
   explicitlyExposedTokens?: ObjStringDict;
   scopes?: Scopes;
+  refreshToken?: RefreshToken;
 };
 
 export type ObjStringDict = { [_: string]: string };
@@ -358,7 +359,12 @@ export class OAuth2AuthCodePKCE {
       return onAccessTokenExpiry(() => this.exchangeRefreshTokenForAccessToken());
     }
 
-    return Promise.resolve({ token: accessToken, explicitlyExposedTokens, scopes });
+    return Promise.resolve({
+      token: accessToken,
+      explicitlyExposedTokens,
+      scopes,
+      refreshToken
+    });
   }
 
   /**
