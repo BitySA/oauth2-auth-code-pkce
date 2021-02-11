@@ -59,39 +59,39 @@ export type URL = string;
  * A list of OAuth2AuthCodePKCE errors.
  */
 // To "namespace" all errors.
-export class ErrorOAuth2 { }
+export class ErrorOAuth2 { toString(): string { return 'ErrorOAuth2'; } }
 
 // For really unknown errors.
-export class ErrorUnknown extends ErrorOAuth2 { }
+export class ErrorUnknown extends ErrorOAuth2 { toString(): string { return 'ErrorUnknown'; }}
 
 // Some generic, internal errors that can happen.
-export class ErrorNoAuthCode extends ErrorOAuth2 { }
-export class ErrorInvalidReturnedStateParam extends ErrorOAuth2 { }
-export class ErrorInvalidJson extends ErrorOAuth2 { }
+export class ErrorNoAuthCode extends ErrorOAuth2 { toString(): string { return 'ErrorNoAuthCode'; }}
+export class ErrorInvalidReturnedStateParam extends ErrorOAuth2 { toString(): string { return 'ErrorInvalidReturnedStateParam'; }}
+export class ErrorInvalidJson extends ErrorOAuth2 { toString(): string { return 'ErrorInvalidJson'; }}
 
 // Errors that occur across many endpoints
-export class ErrorInvalidScope extends ErrorOAuth2 { }
-export class ErrorInvalidRequest extends ErrorOAuth2 { }
-export class ErrorInvalidToken extends ErrorOAuth2 { }
+export class ErrorInvalidScope extends ErrorOAuth2 { toString(): string { return 'ErrorInvalidScope'; }}
+export class ErrorInvalidRequest extends ErrorOAuth2 { toString(): string { return 'ErrorInvalidRequest'; }}
+export class ErrorInvalidToken extends ErrorOAuth2 { toString(): string { return 'ErrorInvalidToken'; }}
 
 /**
  * Possible authorization grant errors given by the redirection from the
  * authorization server.
  */
-export class ErrorAuthenticationGrant extends ErrorOAuth2 { }
-export class ErrorUnauthorizedClient extends ErrorAuthenticationGrant { }
-export class ErrorAccessDenied extends ErrorAuthenticationGrant { }
-export class ErrorUnsupportedResponseType extends ErrorAuthenticationGrant { }
-export class ErrorServerError extends ErrorAuthenticationGrant { }
-export class ErrorTemporarilyUnavailable extends ErrorAuthenticationGrant { }
+export class ErrorAuthenticationGrant extends ErrorOAuth2 { toString(): string { return 'ErrorAuthenticationGrant'; }}
+export class ErrorUnauthorizedClient extends ErrorAuthenticationGrant { toString(): string { return 'ErrorUnauthorizedClient'; }}
+export class ErrorAccessDenied extends ErrorAuthenticationGrant { toString(): string { return 'ErrorAccessDenied'; }}
+export class ErrorUnsupportedResponseType extends ErrorAuthenticationGrant { toString(): string { return 'ErrorUnsupportedResponseType'; }}
+export class ErrorServerError extends ErrorAuthenticationGrant { toString(): string { return 'ErrorServerError'; }}
+export class ErrorTemporarilyUnavailable extends ErrorAuthenticationGrant { toString(): string { return 'ErrorTemporarilyUnavailable'; }}
 
 /**
  * A list of possible access token response errors.
  */
-export class ErrorAccessTokenResponse extends ErrorOAuth2 { }
-export class ErrorInvalidClient extends ErrorAccessTokenResponse { }
-export class ErrorInvalidGrant extends ErrorAccessTokenResponse { }
-export class ErrorUnsupportedGrantType extends ErrorAccessTokenResponse { }
+export class ErrorAccessTokenResponse extends ErrorOAuth2 { toString(): string { return 'ErrorAccessTokenResponse'; }}
+export class ErrorInvalidClient extends ErrorAccessTokenResponse { toString(): string { return 'ErrorInvalidClient'; }}
+export class ErrorInvalidGrant extends ErrorAccessTokenResponse { toString(): string { return 'ErrorInvalidGrant'; }}
+export class ErrorUnsupportedGrantType extends ErrorAccessTokenResponse { toString(): string { return 'ErrorUnsupportedGrantType'; }}
 
 /**
  * WWW-Authenticate error object structure for less error prone handling.
