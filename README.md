@@ -45,7 +45,7 @@ parameters. In order to pass extra parameters, add the following to the
 configuration:
 
 ```
-config.extraAuthorizationParameters = { 'some_query_string_param': 'value', ... };
+config.extraAuthorizationParams = { 'some_query_string_param': 'value', ... };
 ```
 
 If you have values which need to be computed at run-time and then passed, you
